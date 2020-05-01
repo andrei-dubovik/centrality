@@ -2,7 +2,7 @@
 
 ;; Math functions
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defun expt-mod (base power modulus)
   "Raise base to power modulo modulus"

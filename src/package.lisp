@@ -2,7 +2,7 @@
 
 ;; Package definition
 
-(defpackage :ansible
+(defpackage :centrality
   (:use :common-lisp
         :trivial-gray-streams
         :cffi

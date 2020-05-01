@@ -6,7 +6,7 @@
 
 ;; TODO: either program explicitly for SBCL or or think about fallbacks
 
-(in-package :ansible)
+(in-package :centrality)
 
 #+sbcl
 (defmacro make-mailbox ()

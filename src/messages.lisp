@@ -2,7 +2,7 @@
 
 ;; Sending (encoding) and receiving (decoding) BitTorrent messages
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defvar *torrent*) ; a shared structure for torrent bookkeeping
 (defvar *peer*)    ; a private structure for peer bookkeeping

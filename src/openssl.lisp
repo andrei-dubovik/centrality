@@ -2,7 +2,7 @@
 
 ;;; OpenSSL wrappers
 
-(in-package :ansible)
+(in-package :centrality)
 
 (define-foreign-library libcrypto
   (t (:default "libcrypto")))

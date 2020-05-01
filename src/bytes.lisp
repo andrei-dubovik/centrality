@@ -2,7 +2,7 @@
 
 ;; Miscellaneous byte operations
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defmacro with-bytearray ((name size) &rest body)
   "Create an empty bytes array, execute body, return the array"

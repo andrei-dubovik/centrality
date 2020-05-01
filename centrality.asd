@@ -2,7 +2,7 @@
 
 ;; TODO: some earlier files still reference some future files
 
-(defsystem "ansible"
+(defsystem "centrality"
   :depends-on ("cffi" "dexador" "flexi-streams" "iterate" "quri" "usocket" #+sbcl "sb-concurrency")
   :serial t
   :components ((:file "src/package")

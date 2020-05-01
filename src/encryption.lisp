@@ -4,7 +4,7 @@
 
 ;; Utility functions
 
-(in-package :ansible)
+(in-package :centrality)
 
 (define-condition rc4-negotiation-falure (error) ())
 

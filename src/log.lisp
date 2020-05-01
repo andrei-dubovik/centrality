@@ -2,7 +2,7 @@
 
 ;; Simple logging facilities
 
-(in-package :ansible)
+(in-package :centrality)
 
 ;; *log* is set when the log process is started and it is used throughout the program
 (defvar *log*)
@@ -48,6 +48,6 @@
 (defun open-log (file)
   "Start logging thread"
   (setq *log* (make-mailbox))
-  (let ((th (make-thread (lambda () (log-loop file)) :name "ansible-log")))
+  (let ((th (make-thread (lambda () (log-loop file)) :name "centrality-log")))
     (log-msg 1 :event :log-open :level-file *level-file* :level-print *level-print*)
     th))

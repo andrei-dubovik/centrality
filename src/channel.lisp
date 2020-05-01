@@ -2,7 +2,7 @@
 
 ;; Peer related operations
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defparameter *clock* (* 0.1 internal-time-units-per-second))
 (defparameter *minimum-window* 256) ; primitive congestion control
@@ -172,4 +172,4 @@
 
 (defun open-channel (torrent peer queue alarm &rest rest)
   "Initiate peer connection in a separate thread"
-  (make-thread (lambda () (apply #'channel-catch torrent peer queue alarm rest)) :name "ansible-channel"))
+  (make-thread (lambda () (apply #'channel-catch torrent peer queue alarm rest)) :name "centrality-channel"))

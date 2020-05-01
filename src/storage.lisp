@@ -2,7 +2,7 @@
 
 ;; A storage thread that accepts downloaded blocks, verifies pieces, and saves them to disk
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defparameter *file-dir* "./")
 
@@ -102,4 +102,4 @@
 (defun open-storage (torrent)
   "Open a new storage that can accept incoming blocks"
   (setf (tr-queue torrent) (make-mailbox))
-  (make-thread (lambda () (storage-loop torrent)) :name "ansible-storage"))
+  (make-thread (lambda () (storage-loop torrent)) :name "centrality-storage"))

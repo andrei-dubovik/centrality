@@ -2,7 +2,7 @@
 
 ;; Torrent download control (finding peers, initiating download, etc)
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defparameter *no-connections* 10) ; number of simultaneous connections per torrent
 (defparameter *exploration* 0.5)   ; probability for selecting a fresh peer
@@ -88,4 +88,4 @@
 
 (defun start (torrent &rest rest)
   "Start torrent download"
-  (make-thread (lambda () (apply #'control-loop torrent rest)) :name "ansible-control"))
+  (make-thread (lambda () (apply #'control-loop torrent rest)) :name "centrality-control"))

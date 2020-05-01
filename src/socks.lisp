@@ -2,7 +2,7 @@
 
 ;; SOCKS5 interface
 
-(in-package :ansible)
+(in-package :centrality)
 
 ;; Define SOCKS errors
 (define-condition socks-general-error (error) ())

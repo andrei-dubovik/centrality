@@ -2,7 +2,7 @@
 
 ;; Talking to trackers
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defparameter *tracker-timeout* 120)
 (defparameter *tracker-interval* 600)
@@ -71,4 +71,4 @@
 
 (defun open-tracker (torrent queue alarm &rest rest)
   "Start tracker loop"
-  (make-thread (lambda () (apply #'tracker-loop torrent queue alarm rest)) :name "ansible-tracker"))
+  (make-thread (lambda () (apply #'tracker-loop torrent queue alarm rest)) :name "centrality-tracker"))

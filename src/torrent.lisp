@@ -2,7 +2,7 @@
 
 ;; Torrent files, torrent structures
 
-(in-package :ansible)
+(in-package :centrality)
 
 ;; File operations
 

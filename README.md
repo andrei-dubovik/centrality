@@ -1,6 +1,6 @@
 <!--- Copyright (c) 2020 Andrey Dubovik <andrei@dubovik.eu> --->
 
-# Ansible
+# Centrality
 
 ## Disclaimer
 
@@ -16,8 +16,8 @@ Currently, it is possible to download a popular torrent or two. Less popular tor
 
 ```lisp
 (push *default-pathname-defaults* asdf:*central-registry*)
-(require :ansible)
-(in-package :ansible)
+(require :centrality)
+(in-package :centrality)
 ```
 
 There will be some warnings as not all files are in a correct order...
@@ -25,7 +25,7 @@ There will be some warnings as not all files are in a correct order...
 **Second**, start a log service:
 
 ```lisp
-(open-log "~/ansible/log.txt")
+(open-log "~/centrality/log.txt")
 ```
 
 A log service is not strictly necessary, but right now there is no other way to see progress. At least this way, you can open the file with `less`, hit `F`, and enjoy the show.
@@ -33,7 +33,7 @@ A log service is not strictly necessary, but right now there is no other way to 
 **Third**, we will need to set the downloads directory. There are a few other parameters scattered in the code (always at the top of source files), but this one is the only one required.
 
 ```lisp
-(defparameter *file-dir* "~/ansible/downloads/") ; don't forget the trailing slash, no proper handling of pathnames yet...
+(defparameter *file-dir* "~/centrality/downloads/") ; don't forget the trailing slash, no proper handling of pathnames yet...
 ```
 
 **Fourth**, initiate a download:
@@ -65,7 +65,7 @@ A blacklist can be specified in a functional manner (a contrived example, admitt
 ```lisp
 (dolist (sfx '("control" "tracker" "channel" "storage" "log"))
   (dolist (th (all-threads))
-    (if (equal (thread-name th) (concatenate 'string "ansible-" sfx))
+    (if (equal (thread-name th) (concatenate 'string "centrality-" sfx))
         (destroy-thread th))))
 ```
 

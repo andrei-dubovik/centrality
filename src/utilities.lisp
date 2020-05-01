@@ -2,7 +2,7 @@
 
 ;; Common miscellaneous functions
 
-(in-package :ansible)
+(in-package :centrality)
 
 (defmacro with-gensym ((&rest names) &body body)
   "Use unique names in macros to avoid name conflicts"

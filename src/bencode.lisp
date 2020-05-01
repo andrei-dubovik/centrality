@@ -2,7 +2,7 @@
 
 ;; Functions to decode/encode bencoded data
 
-(in-package :ansible)
+(in-package :centrality)
 
 ;; Strings
 
