@@ -1,0 +1,23 @@
+;; Copyright (c) 2020 Andrey Dubovik <andrei@dubovik.eu>
+
+;; TODO: some earlier files still reference some future files
+
+(defsystem "ansible"
+  :depends-on ("cffi" "dexador" "flexi-streams" "iterate" "quri" "usocket" #+sbcl "sb-concurrency")
+  :serial t
+  :components ((:file "src/package")
+               (:file "src/utilities")
+               (:file "src/mailbox")
+               (:file "src/math")
+               (:file "src/log")
+               (:file "src/bytes")
+               (:file "src/socks")
+               (:file "src/openssl")
+               (:file "src/encryption")
+               (:file "src/bencode")
+               (:file "src/torrent")
+               (:file "src/tracker")
+               (:file "src/messages")
+               (:file "src/storage")
+               (:file "src/channel")
+               (:file "src/control")))
