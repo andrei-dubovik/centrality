@@ -38,9 +38,12 @@
       (destructuring-bind (host . port) address
         (format nil "socks5://~{~d~^.~}:~d" (coerce host 'list) port))))
 
+(define-condition non-http-tracker (error) ())
+
 ;; TODO: does dexador support username/password for SOCKS5?
 (defun get-peers (torrent proxy)
   "Get a list of peers from tracker"
+  (if (not (equalp (subseq (tr-announce torrent) 0 4) "http")) (error 'non-http-tracker))
   (decode-peers
    (dex:get
     (make-uri
