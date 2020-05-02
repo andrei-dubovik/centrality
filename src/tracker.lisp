@@ -39,7 +39,6 @@
         (format nil "socks5://~{~d~^.~}:~d" (coerce host 'list) port))))
 
 ;; TODO: does dexador support username/password for SOCKS5?
-;; TODO: do trackers actually need other fields mentioned in the specification?
 (defun get-peers (torrent proxy)
   "Get a list of peers from tracker"
   (decode-peers
@@ -49,6 +48,9 @@
      `(("info_hash" . ,(quri:url-encode (tr-hash torrent)))
        ("peer_id" . ,(quri:url-encode (random-peerid)))
        ("port" . ,(write-to-string *listen-port*))
+       ("uploaded" . "0")
+       ("downloaded" . "0")
+       ("left" . ,(write-to-string (tr-length torrent)))
        ("compact" . "1")))
     :connect-timeout *tracker-timeout*
     :read-timeout *tracker-timeout*
