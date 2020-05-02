@@ -142,7 +142,7 @@
              empty
              (> (floor (- (get-internal-real-time) clock) *clock*) 0))
         (send-messages)
-        (setq clock (if clock (+ clock *clock*) (get-internal-real-time))))) ; accounts for first run
+        (setq clock (+ clock *clock*))))
 
     ;; shedule next operation
     (channel-loop
@@ -159,7 +159,7 @@
                 (*socket* socket)
                 (*stream* (peer-connect)))
            (send (:interested)) ; TODO: temporary here, belongs elsewhere
-           (channel-loop nil 0.0))
+           (channel-loop (get-internal-real-time) 0.0))
       (socket-close socket))))
 
 (defun channel-catch (torrent peer queue alarm &rest rest)
