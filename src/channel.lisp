@@ -4,7 +4,12 @@
 
 (in-package :centrality)
 
-(defparameter *clock* (* 0.1 internal-time-units-per-second))
+(defparameter *clock* (ceiling internal-time-units-per-second 10))
+
+;; Could it be that a socket __always__ timeouts a few cycles before
+;; it's due? Probably not, but just in case a small delay is added.
+(defparameter *clock-edge* 1)
+
 (defparameter *minimum-window* 256) ; primitive congestion control
 (defparameter *call-sign* "-AS0000-")
 
@@ -124,31 +129,31 @@
 (defun channel-loop (clock timeout)
   "Receive messages on arrival, send messages at regular intervals"
   (declare (optimize (debug 0))) ; tail-call optimization required
-  (multiple-value-bind (socket remain) (wait-for-input *socket* :timeout timeout)
-    (let ((empty (not (listen *stream*))))
+  (multiple-value-bind (socket remain)
+      (wait-for-input *socket* :timeout (/ timeout (coerce internal-time-units-per-second 'float)))
+    (declare (ignore socket))
+    (symbol-macrolet ((tick (ceiling (- (get-internal-real-time) clock) *clock*))) ; missed clock cycles
 
       ;; a hackish way to detect a closed connection
       ;; (see https://stackoverflow.com/questions/61306791)
-      (if (and (eql timeout remain) empty)
+      (if (and (eql timeout remain) (not (listen *stream*)))
           (error 'closed-connection))
 
       ;; receive messages if any
-      (while (listen *stream*)
+      (while (and (listen *stream*) (<= tick 0))
         (destructuring-bind (type &rest rest) (recv)
           (process type rest)))
 
       ;; send messages if it is time or if overdue
-      (when (or
-             empty
-             (> (floor (- (get-internal-real-time) clock) *clock*) 0))
+      (when (> tick 0)
         (send-messages)
         (setq clock (+ clock *clock*))))
 
     ;; shedule next operation
     (channel-loop
      clock
-     (/ (max 0 (- (+ clock *clock*) (get-internal-real-time)))
-        (coerce internal-time-units-per-second 'float)))))
+     (let ((delta (- clock (get-internal-real-time))))
+       (if (> delta 0) (+ delta *clock-edge*) 0)))))
 
 (defun channel-init (torrent peer queue alarm &rest rest)
   "Establish dynamic contexts, connect to peer and start trasnferring"
@@ -159,7 +164,7 @@
                 (*socket* socket)
                 (*stream* (peer-connect)))
            (send (:interested)) ; TODO: temporary here, belongs elsewhere
-           (channel-loop (get-internal-real-time) 0.0))
+           (channel-loop (1- (get-internal-real-time)) 0)) ; 1- is required to trigger a clock start
       (socket-close socket))))
 
 (defun channel-catch (torrent peer queue alarm &rest rest)
