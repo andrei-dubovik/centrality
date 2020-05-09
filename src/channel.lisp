@@ -5,11 +5,7 @@
 (in-package :centrality)
 
 (defparameter *clock* (ceiling internal-time-units-per-second 10))
-
-;; Could it be that a socket __always__ timeouts a few cycles before
-;; it's due? Probably not, but just in case a small delay is added.
-(defparameter *clock-edge* 1)
-
+(defparameter *precision* (coerce internal-time-units-per-second 'float))
 (defparameter *minimum-window* 256) ; primitive congestion control
 (defparameter *call-sign* "-AS0000-")
 
@@ -130,9 +126,9 @@
   "Receive messages on arrival, send messages at regular intervals"
   (declare (optimize (debug 0))) ; tail-call optimization required
   (multiple-value-bind (socket remain)
-      (wait-for-input *socket* :timeout (/ timeout (coerce internal-time-units-per-second 'float)))
+      (wait-for-input *socket* :timeout timeout)
     (declare (ignore socket))
-    (symbol-macrolet ((tick (ceiling (- (get-internal-real-time) clock) *clock*))) ; missed clock cycles
+    (symbol-macrolet ((tick (ceiling (- (1+ (get-internal-real-time)) clock) *clock*))) ; missed clock cycles
 
       ;; a hackish way to detect a closed connection
       ;; (see https://stackoverflow.com/questions/61306791)
@@ -152,8 +148,7 @@
     ;; shedule next operation
     (channel-loop
      clock
-     (let ((delta (- clock (get-internal-real-time))))
-       (if (> delta 0) (+ delta *clock-edge*) 0)))))
+     (/ (max (- clock (get-internal-real-time)) 0) *precision*))))
 
 (defun channel-init (torrent peer queue alarm &rest rest)
   "Establish dynamic contexts, connect to peer and start trasnferring"
@@ -164,7 +159,7 @@
                 (*socket* socket)
                 (*stream* (peer-connect)))
            (send (:interested)) ; TODO: temporary here, belongs elsewhere
-           (channel-loop (1- (get-internal-real-time)) 0)) ; 1- is required to trigger a clock start
+           (channel-loop (get-internal-real-time) 0))
       (socket-close socket))))
 
 (defun channel-catch (torrent peer queue alarm &rest rest)
