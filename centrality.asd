@@ -3,7 +3,7 @@
 ;; TODO: some earlier files still reference some future files
 
 (defsystem "centrality"
-  :depends-on ("cffi" "dexador" "flexi-streams" "iterate" "quri" "usocket" #+sbcl "sb-concurrency")
+  :depends-on ("cffi" "dexador" "flexi-streams" "iterate" "quri" "usocket" "trivial-garbage" #+sbcl "sb-concurrency")
   :serial t
   :components ((:file "src/package")
                (:file "src/utilities")

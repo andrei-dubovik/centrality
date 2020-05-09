@@ -65,6 +65,10 @@
   "Write an integer to stream (big-endian)"
   (write-bytes (pack integer len) stream))
 
+(defmacro literal-bytes (&rest rest)
+  "Make a bytearray with initial contents"
+  `(make-array ,(length rest) :element-type '(unsigned-byte 8) :initial-contents ',rest))
+
 (defun zero-bytes (number)
   "Make a zero bytearray"
   (make-array number :element-type '(unsigned-byte 8)))

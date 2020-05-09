@@ -18,45 +18,6 @@
         (setq i (1+ i))
         (setq i 0))))
 
-;; RC4
-;; TODO: CPU hungry, needs type declarations and maybe a structure for the state
-
-(defun rc4-ksa (key)
-  "Generate initial RC4 permutation"
-  (with-bytearray (p 256)
-    (dotimes (i 256)
-      (setf (aref p i) i))
-    (do ((j 0)
-         (i 0 (1+ i)))
-        ((eql i 256))
-      (setq j (mod (+ j (aref p i) (aref key (mod i (length key)))) 256))
-      (rotatef (aref p i) (aref p j)))))
-
-(defun rc4-read (state)
-  "Get next RC4 key byte"
-  (symbol-macrolet ((p (first state))
-                    (i (second state))
-                    (j (third state)))
-    (setf i (mod (1+ i) 256))
-    (setf j (mod (+ j (aref p i)) 256))
-    (rotatef (aref p i) (aref p j))
-    (aref p (mod (+ (aref p i) (aref p j)) 256))))
-
-(defun rc4-init (key &optional (burnin 0))
-  "Initialize RC4 cipher"
-  (let ((s (list (rc4-ksa key) 0 0)))
-    (dotimes (i burnin) (rc4-read s)) s))
-
-(defmacro xor (integer-1 integer-2)
-  `(boole boole-xor ,integer-1 ,integer-2))
-
-(defun rc4-xor (state msg)
-  "Encrypt/decrypt message using RC4"
-  (with-bytearray (out (length msg))
-    (dotimes (i (length msg))
-      (setf (aref out i)
-            (xor (rc4-read state) (aref msg i))))))
-
 ;; Streams
 
 (defclass rc4-stream (fundamental-input-stream fundamental-output-stream)
@@ -67,20 +28,22 @@
 (defmethod stream-read-byte ((stream rc4-stream))
   (let ((byte (read-byte (.stream stream) nil :eof)))
     (if (eql byte :eof) :eof
-        (xor (rc4-read (.in stream)) byte))))
+        (rc4-byte (.in stream) byte))))
 
 (defmethod stream-read-sequence ((stream rc4-stream) seq start end &key)
-  (iter (for i from start below end)
-        (setf (elt seq i) (read-byte stream)))
+  (let ((len (- end start)))
+    (rc4-sequence-into
+     (.in stream) (read-bytes len (.stream stream)) seq :out-offset start))
   end)
 
 (defmethod stream-write-byte ((stream rc4-stream) byte)
-  (write-byte (xor (rc4-read (.out stream)) byte) (.stream stream))
+  (write-byte (rc4-byte (.out stream) byte) (.stream stream))
   byte)
 
 (defmethod stream-write-sequence ((stream rc4-stream) seq start end &key)
-  (iter (for i from start below end)
-        (write-byte (elt seq i) stream))
+  (write-bytes
+   (rc4-sequence (.out stream) seq :offset start :len (- end start))
+   (.stream stream))
   seq)
 
 (defmethod stream-finish-output ((stream rc4-stream))
@@ -100,7 +63,7 @@
 
 (defparameter *p* #xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A63A36210000000000090563)
 (defparameter *vc* (zero-bytes 8))
-(defparameter *crypto-provide* #(0 0 0 2))
+(defparameter *crypto-provide* (literal-bytes 0 0 0 2))
 
 (define-condition rc4-refused (error) ())
 (define-condition padding-overflow (error) ())
@@ -132,11 +95,11 @@
      (bytes-xor (sha1 (conc-bytes "req2" hash))
                 (sha1 (conc-bytes "req3" s))))
     (write-list
-     (list *vc* *crypto-provide* (pack (length padc) 2) padc #(0 0)) rc4s)
+     (list *vc* *crypto-provide* (pack (length padc) 2) padc (literal-bytes 0 0)) rc4s)
     (finish-output rc4s)
 
     ;; 4. A verifies B has private key and knows shared secret
-    (forward stream (rc4-xor rc4b *vc*) 520)
+    (forward stream (rc4-sequence rc4b *vc*) 520)
 
     ;; Double check RC4 acceptance
     (if (not (equalp (read-bytes 4 rc4s) *crypto-provide*))

@@ -4,6 +4,7 @@
 
 (defpackage :centrality
   (:use :common-lisp
+        :trivial-garbage
         :trivial-gray-streams
         :cffi
         :flexi-streams
