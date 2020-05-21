@@ -17,17 +17,22 @@
          (write-char char out))))
 
 ;; TODO: reload files if exist
-(defun open-files (torrent)
-  "Open files associated with torrent"
-  (dolist (file (tr-files torrent))
-    (let* ((pathname (escape-pathname (concatenate 'string *file-dir* (file-path file)))))
-      (ensure-directories-exist pathname)
-      (symbol-macrolet ((fd (file-fd file)))
-        (setf fd (open pathname :direction :output :if-exists :supersede :element-type '(unsigned-byte 8)))
-        (file-position fd (1- (file-size file)))
-        (write-byte 0 fd)
-        (finish-output fd)
-        (log-msg 2 :event :file-open :torrent (format-hash torrent) :path pathname)))))
+(defun ensure-open-file (file torrent)
+  "Open a file if closed, allocate and open if does not exist"
+  (symbol-macrolet ((fd (file-fd file)))
+    (if (not fd)
+        (let ((pathname (escape-pathname (concatenate 'string *file-dir* (file-path file)))))
+          (if (probe-file pathname)
+              (progn
+                (setf fd (open pathname :direction :output :if-exists :overwrite :element-type '(unsigned-byte 8)))
+                (log-msg 2 :event :file-open :torrent (format-hash torrent) :path pathname))
+              (progn
+                (ensure-directories-exist pathname)
+                (setf fd (open pathname :direction :output :element-type '(unsigned-byte 8)))
+                (file-position fd (1- (file-size file)))
+                (write-byte 0 fd)
+                (finish-output fd)
+                (log-msg 2 :event :file-create :torrent (format-hash torrent) :path pathname)))))))
 
 (defun close-files (torrent)
   "Close all open file descriptors"
@@ -53,6 +58,7 @@
          (end (+ start (piece-length pid torrent))))
     (split-segment
      (lambda (start end file offset)
+       (ensure-open-file file torrent)
        (file-position (file-fd file) offset)
        (write-bytes (subseq piece start end) (file-fd file)))
      start end (tr-files torrent))))
@@ -89,14 +95,12 @@
   "Wait on new blocks and process them"
   (log-msg 1 :event :start :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
   (unwind-protect
-       (progn
-         (open-files torrent)
-         (while (block = (recv-msg (tr-queue torrent)))
-           (process-block block torrent)
-           (when (bit-onep (tr-piece-mask torrent))
-             (log-msg 1 :event :finish :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
-             (format t "Download complete~%")
-             (return-from storage-loop))))
+       (while (block = (recv-msg (tr-queue torrent)))
+         (process-block block torrent)
+         (when (bit-onep (tr-piece-mask torrent))
+           (log-msg 1 :event :finish :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
+           (format t "Download complete~%")
+           (return-from storage-loop)))
     (close-files torrent)))
 
 (defun open-storage (torrent)
