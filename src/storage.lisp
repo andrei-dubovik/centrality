@@ -16,12 +16,15 @@
              (write-char #\\ out))
          (write-char char out))))
 
-;; TODO: reload files if exist
+(defun file-dir (file)
+  "Return absolute file path"
+  (escape-pathname (concatenate 'string *file-dir* (file-path file))))
+
 (defun ensure-open-file (file torrent)
   "Open a file if closed, allocate and open if does not exist"
   (symbol-macrolet ((fd (file-fd file)))
     (if (not fd)
-        (let ((pathname (escape-pathname (concatenate 'string *file-dir* (file-path file)))))
+        (let ((pathname (file-dir file)))
           (if (probe-file pathname)
               (progn
                 (setf fd (open pathname :direction :output :if-exists :overwrite :element-type '(unsigned-byte 8)))
@@ -34,12 +37,23 @@
                 (finish-output fd)
                 (log-msg 2 :event :file-create :torrent (format-hash torrent) :path pathname)))))))
 
+(defun open-files (torrent &rest rest)
+  "Open all existing files"
+  (dolist (file (tr-files torrent))
+    (let ((pathname (file-dir file)))
+      (symbol-macrolet ((fd (file-fd file)))
+        (when (probe-file pathname)
+          (setf fd (apply #'open pathname :element-type '(unsigned-byte 8) rest))
+          (log-msg 2 :event :file-open :torrent (format-hash torrent) :path pathname))))))
+
 (defun close-files (torrent)
   "Close all open file descriptors"
   (dolist (file (tr-files torrent))
-    (when (streamp (file-fd file))
-      (close (file-fd file))
-      (log-msg 2 :event :file-close :torrent (format-hash torrent) :path (file-path file)))))
+    (symbol-macrolet ((fd (file-fd file)))
+      (when fd
+        (close fd)
+        (setf fd nil)
+        (log-msg 2 :event :file-close :torrent (format-hash torrent) :path (file-path file))))))
 
 (defun split-segment (callback start end files)
   "Assists in writing one piece into multiple files"
@@ -89,11 +103,43 @@
                 (bit-clear mask)
                 (log-msg 3 :event :fail :torrent (format-hash torrent) :pid pid))))))))
 
+(defun iterate-pieces (callback torrent)
+  "Iterate over pieces in open files"
+  (dotimes (pid (tr-no-pieces torrent))
+    (let* ((start (* pid (tr-piece-length torrent)))
+           (len (piece-length pid torrent))
+           piece)
+      (split-segment
+       (lambda (start end file offset)
+         (let ((fd (file-fd file)))
+           (when fd
+             (if (not piece) (setq piece (zero-bytes len)))
+             (file-position fd offset)
+             (read-sequence piece fd :start start :end end))))
+       start (+ start len) (tr-files torrent))
+      (if piece
+          (funcall callback pid piece)))))
+
+(defun load-files (torrent)
+  "Read files and check what pieces have already been downloaded"
+  (unwind-protect
+       (let ((mask (tr-piece-mask torrent)))
+         (open-files torrent :direction :input)
+         (iterate-pieces
+          (lambda (pid piece)
+            (when (verify-piece pid piece torrent)
+              (setf (sbit mask pid) 1)
+              (bit-set (svref (tr-block-mask torrent) pid))))
+          torrent)
+         (log-msg 1 :event :load-files :torrent (format-hash torrent) :downloaded (cons (count 1 mask) (length mask))))
+    (close-files torrent)))
+
 ;; Event loop
 
 (defun storage-loop (torrent)
   "Wait on new blocks and process them"
   (log-msg 1 :event :start :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
+  (load-files torrent)
   (unwind-protect
        (while (block = (recv-msg (tr-queue torrent)))
          (process-block block torrent)

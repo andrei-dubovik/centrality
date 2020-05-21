@@ -68,5 +68,3 @@ A blacklist can be specified in a functional manner (a contrived example, admitt
     (if (equal (thread-name th) (concatenate 'string "centrality-" sfx))
         (destroy-thread th))))
 ```
-
-If the program is stopped before download completes, the whole download will need to be started anew. Obviously, reloading existing files is on my task list close to the top, but it's not at the very top.

@@ -107,6 +107,10 @@
   "Reset bit vector to 0s"
   (bit-xor array array array))
 
+(defun bit-set (array)
+  "Reset bit vector to 1s"
+  (bit-eqv array array array))
+
 (defmacro with-bit-vector ((name size) &rest body)
   "Create an empty bit vector, execute body, return the vector"
   `(with-vector (,name ,size 'bit) ,@body))
