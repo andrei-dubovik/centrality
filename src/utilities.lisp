@@ -74,6 +74,10 @@
   `(let ((,name ,test))
      (if ,name ,then ,else)))
 
+(defun first-or-self (object)
+  "Get first element if object is list, otherwise return object itself"
+  (if (listp object) (car object) object))
+
 ;; Playing around with iteration macros :)
 
 (defmacro while (cond &body body)

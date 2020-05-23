@@ -72,7 +72,7 @@
     (with-structure tr
         ((info (getvalue "info" torrent))
          (pieces (getvalue "pieces" info))
-         (:announce (decode-string (getvalue "announce" torrent)))
+         (:announce (decode-string (first-or-self (getvalue "announce" torrent))))
          (:name (decode-string (getvalue "name" info)))
          (:hash hash)
          (:piece-length (getvalue "piece length" info))
