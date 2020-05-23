@@ -4,6 +4,7 @@
 
 (in-package :centrality)
 
+(defparameter *user-agent* "Centrality/0.0")
 (defparameter *tracker-timeout* 120)
 (defparameter *tracker-interval* 600)
 (defparameter *listen-port* 6881) ; not implemented, sent to trackers
@@ -58,7 +59,8 @@
     :connect-timeout *tracker-timeout*
     :read-timeout *tracker-timeout*
     :force-binary t
-    :proxy (format-proxy proxy))))
+    :proxy (format-proxy proxy)
+    :headers `(("User-Agent" . ,*user-agent*)))))
 
 ;; Tracker logic is basic: query tracker periodically, ignore errors but log them.
 
