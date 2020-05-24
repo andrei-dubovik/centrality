@@ -25,6 +25,10 @@
       ((eql head #\d) (decode-dict stream))
       (t (decode-bytes stream)))))
 
+(defun decode-bounded (stream length)
+  "Decode bencoded stream, raise error if length is exceeded"
+  (with-input-from-sequence (in (read-bytes length stream)) (decode in)))
+
 (defun decode-integer (stream &optional (skip t) (delim #\e))
   "Decode integer"
   (if skip (read-byte stream))

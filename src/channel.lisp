@@ -8,6 +8,8 @@
 (defparameter *precision* (coerce internal-time-units-per-second 'float))
 (defparameter *minimum-window* 256) ; primitive congestion control
 (defparameter *call-sign* "-CY0000-")
+(defparameter *call-name* "Centrality 0.0")
+(defparameter *extensions* (ash 1 20)) ; extension protocol
 
 ;; Call sign
 
@@ -15,12 +17,17 @@
   "Generate peer id with a random suffix"
   (conc-bytes *call-sign* (random-bytes 12)))
 
-;; Four dynamics contexts are used, all four are established by (open-channel ...)
+(defun ext-handshake ()
+  "Prepare extended handshake"
+  `(("m" . ,*ext-msg-ids*) ("v" . ,(encode-string *call-name*))))
 
-(defvar *socket*)  ; connection socket
-(defvar *stream*)  ; encoded stream used to communicate with the peer
-(defvar *torrent*) ; a shared structure for torrent bookkeeping
-(defvar *peer*)    ; a shared structure for peer bookkeeping
+;; Five dynamics contexts are used, all five are established by (open-channel ...)
+
+(defvar *socket*)    ; connection socket
+(defvar *stream*)    ; encoded stream used to communicate with the peer
+(defvar *torrent*)   ; a shared structure for torrent bookkeeping
+(defvar *peer*)      ; a shared structure for peer bookkeeping
+(defvar *new-peers*) ; a message queue for new peers, and the corresponding semaphore
 
 ;; Scheduler
 
@@ -48,6 +55,12 @@
        (not (peer-choked *peer*)))
       (if-let (piece (choose-piece))
         (request-piece piece))))
+
+(defun send-init ()
+  "Send initial messages"
+  (send (:interested))
+  (if (logbitp 20 (peer-exts *peer*))
+      (send (:ext-handshake (ext-handshake)))))
 
 ;; Receiving messages
 
@@ -86,6 +99,16 @@
   (incf (peer-no-blocks *peer*))
   (send-msg (tr-queue *torrent*) body))
 
+;; Receiving extended messages
+
+(defmethod process ((type (eql :ext-pex)) body)
+  "Register new peers with the control thread"
+  (destructuring-bind (peers) body
+    (destructuring-bind (queue . alarm) *new-peers*
+      (dolist (peer (split-peers (getvalue "added" peers) 6))
+        (enqueue peer queue))
+      (signal-semaphore alarm))))
+
 ;; Handshake
 
 (defun reset-peer (peer peerid exts torrent)
@@ -103,7 +126,7 @@
 (defun peer-connect ()
   "Establish an encrypted connection to peer"
   (let ((stream (open-rc4-tunnel (socket-stream *socket*) (tr-hash *torrent*))))
-    (send-handshake (zero-bytes 8) (tr-hash *torrent*) (random-peerid) stream)
+    (send-handshake *extensions* (tr-hash *torrent*) (random-peerid) stream)
     (destructuring-bind (exts hash peerid) (recv-handshake stream)
       (if (not (equalp hash (tr-hash *torrent*)))
           (error 'bad-hash))
@@ -157,8 +180,9 @@
          (let* ((*torrent* torrent)
                 (*peer* peer)
                 (*socket* socket)
-                (*stream* (peer-connect)))
-           (send (:interested)) ; TODO: temporary here, belongs elsewhere
+                (*stream* (peer-connect))
+                (*new-peers* (cons queue alarm)))
+           (send-init)
            (channel-loop (get-internal-real-time) 0))
       (socket-close socket))))
 

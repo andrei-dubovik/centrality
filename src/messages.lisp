@@ -10,10 +10,16 @@
 (defparameter *protocol*
   (conc-bytes 19 (string-to-octets "BitTorrent protocol")))
 
+(defparameter *ext-msg-ids* '(("ut_pex" . 1)))
+
+(defmacro eid (message)
+  "Lookup extended id for a given message"
+  (getvalue message *ext-msg-ids*))
+
 (defun send-handshake (exts hash peerid &optional (stream *stream*))
   "Send BitTorrent handshake message"
   (write-list
-   (list *protocol* exts hash peerid) stream)
+   (list *protocol* (pack exts 8) hash peerid) stream)
   (finish-output stream))
 
 (define-condition bad-protocol (error) ())
@@ -23,10 +29,18 @@
   (let ((*stream* stream))
     (if (not (equalp (read-bytes 20) *protocol*))
         (error 'bad-protocol))
-    (list (read-bytes 8) (read-bytes 20) (read-bytes 20))))
+    (list (read-int 8) (read-bytes 20) (read-bytes 20))))
 
 (define-condition unknown-message-id (error) ())
+(define-condition unknown-extended-message-id (error) ())
 (define-condition message-size-exceeded (error) ())
+
+(defun receive-extended (id len stream)
+  "Receive extended BitTorrent message"
+  (cond
+    ((eql id 0) `(:ext-handshake ,(decode-bounded stream len)))
+    ((eql id (eid "ut_pex")) `(:ext-pex ,(decode-bounded stream len)))
+    (t (error 'unknown-extended-message-id))))
 
 (defun receive-message (stream)
   "Receive BitTorrent message"
@@ -46,8 +60,20 @@
             (7 `(:piece ,(read-int 4) ,(read-int 4) ,(read-bytes (- len 9))))
             (8 `(:cancel ,(read-int 4) ,(read-int 4) ,(read-int 4)))
             (9 `(:port ,(read-int 2)))
+            (20 (receive-extended (byte-read) (- len 2) stream))
             (t (error 'unknown-message-id))))
         '(:keepalive))))
+
+(defun send-extended (id msg stream)
+  "Send BitTorrent message"
+  (let ((*stream* stream))
+    (case id
+      (:ext-handshake
+       (destructuring-bind (handshake) msg
+         (multiple-value-bind (bytes len) (encode-to-bytes handshake)
+           (write-int (+ len 2) 4)
+           (write-int 20 1) (write-int 0 1)
+           (write-bytes bytes)))))))
 
 (defun send-message (msg stream)
   "Send BitTorrent message"
@@ -83,7 +109,8 @@
            (write-int index 4) (write-int begin 4) (write-int length 4)))
         (:port
          (destructuring-bind (listen-port) msg
-           (write-int 3 4) (byte-write 9) (write-int listen-port 2))))))
+           (write-int 3 4) (byte-write 9) (write-int listen-port 2)))
+        (t (send-extended id msg stream)))))
   (finish-output stream))
 
 (defun message-digest (msg)
