@@ -59,44 +59,49 @@
           (funcall *key-hook* key start (flexi-stream-position stream)))
         (finally (read-byte stream))))
 
-;; Encoding (not used)
-;
-;(defun encode (data stream)
-;  "Bencode data to stream"
-;  (cond
-;    ((integerp data) (encode-integer data stream))
-;    ((arrayp data) (encode-bytes data stream))
-;    ((listp data)
-;     (if (and (consp (car data)) (stringp (caar data)))
-;         (encode-dict data stream)
-;         (encode-list data stream)))))
-;
-;(defun encode-integer (integer stream &optional (start #\i) (end #\e))
-;  "Encode integer"
-;  (if start (write-cb start stream))
-;  (iter (for i in-sequence (write-to-string integer))
-;        (write-cb i stream))
-;  (write-cb end stream))
-;
-;(defun encode-bytes (data stream)
-;  "Encode byte sequence"
-;  (encode-integer (length data) stream nil #\:)
-;  (write-sequence data stream))
-;
-;(defun encode-list (data stream)
-;  "Encode list"
-;  (write-cb #\l stream)
-;  (dolist (item data)
-;    (encode item stream))
-;  (write-cb #\e stream))
-;
-;(defun encode-dict (data stream)
-;  "Encode dictionary"
-;  (write-cb #\d stream)
-;  (iter (for (k . v) in data)
-;        (encode (encode-string k) stream)
-;        (encode v stream))
-;  (write-cb #\e stream))
+;; Encoding
+
+(defun encode (data stream)
+  "Bencode data to stream"
+  (cond
+    ((integerp data) (encode-integer data stream))
+    ((arrayp data) (encode-bytes data stream))
+    ((listp data)
+     (if (and (consp (car data)) (stringp (caar data)))
+         (encode-dict data stream)
+         (encode-list data stream)))))
+
+(defun encode-to-bytes (data)
+  "Bencode data to a newly allocated bytes array"
+  (let ((bytes (with-output-to-bytes (out) (encode data out))))
+    (values bytes (length bytes))))
+
+(defun encode-integer (integer stream &optional (start #\i) (end #\e))
+  "Encode integer"
+  (if start (write-cb start stream))
+  (iter (for i in-sequence (write-to-string integer))
+        (write-cb i stream))
+  (write-cb end stream))
+
+(defun encode-bytes (data stream)
+  "Encode byte sequence"
+  (encode-integer (length data) stream nil #\:)
+  (write-sequence data stream))
+
+(defun encode-list (data stream)
+  "Encode list"
+  (write-cb #\l stream)
+  (dolist (item data)
+    (encode item stream))
+  (write-cb #\e stream))
+
+(defun encode-dict (data stream)
+  "Encode dictionary"
+  (write-cb #\d stream)
+  (iter (for (k . v) in data)
+        (encode (encode-string k) stream)
+        (encode v stream))
+  (write-cb #\e stream))
 
 ;; Sequence operations
 

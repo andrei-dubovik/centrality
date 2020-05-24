@@ -8,6 +8,12 @@
   "Create an empty bytes array, execute body, return the array"
   `(with-vector (,name ,size '(unsigned-byte 8)) ,@body))
 
+(defmacro with-output-to-bytes ((name) &body body)
+  "Create a new stream that outputs to a bytes array"
+  (with-gensym (bytes)
+    `(let ((,bytes (with-output-to-sequence (,name :element-type '(unsigned-byte 8)) ,@body)))
+       (make-array (length ,bytes) :element-type '(unsigned-byte 8) :initial-contents ,bytes))))
+
 ;; Define global stream for dynamic overloading
 ;; (otherwise "stream" is the most common word in the whole program)
 
