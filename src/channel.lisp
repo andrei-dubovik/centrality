@@ -7,7 +7,7 @@
 (defparameter *clock* (ceiling internal-time-units-per-second 10))
 (defparameter *precision* (coerce internal-time-units-per-second 'float))
 (defparameter *minimum-window* 256) ; primitive congestion control
-(defparameter *call-sign* "-AS0000-")
+(defparameter *call-sign* "-CY0000-")
 
 ;; Call sign
 
