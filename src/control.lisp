@@ -56,14 +56,15 @@
   (declare (ignore p))
   nil)
 
-(defun control-loop (torrent &rest rest &key (blacklist #'empty-blacklist) &allow-other-keys)
+(defun control-loop (torrent &rest rest &key (blacklist #'empty-blacklist) trackers &allow-other-keys)
   "Initiate new connections, keep track of past and present peers"
   (let ((torrent (new-tr torrent)) ; TODO: move this initialization higher up the stack
         (peers (make-hash-table :test #'equalp))
         (new-peers (make-queue))
         (alarm (make-semaphore)))
     (open-storage torrent)
-    (apply #'open-tracker torrent new-peers alarm rest)
+    (dolist (tracker (adjoin (tr-announce torrent) trackers :test #'equalp))
+      (apply #'open-tracker tracker torrent new-peers alarm rest))
     (while (wait-on-semaphore alarm)
 
       ;; Check for new peers

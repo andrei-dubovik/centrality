@@ -42,13 +42,13 @@
 (define-condition non-http-tracker (error) ())
 
 ;; TODO: does dexador support username/password for SOCKS5?
-(defun get-peers (torrent proxy)
+(defun get-peers (tracker torrent proxy)
   "Get a list of peers from tracker"
-  (if (not (equalp (subseq (tr-announce torrent) 0 4) "http")) (error 'non-http-tracker))
+  (if (not (equalp (subseq tracker 0 4) "http")) (error 'non-http-tracker))
   (decode-peers
    (dex:get
     (make-uri
-     (tr-announce torrent)
+     tracker
      `(("info_hash" . ,(quri:url-encode (tr-hash torrent)))
        ("peer_id" . ,(quri:url-encode (random-peerid)))
        ("port" . ,(write-to-string *listen-port*))
@@ -64,18 +64,18 @@
 
 ;; Tracker logic is basic: query tracker periodically, ignore errors but log them.
 
-(defun tracker-loop (torrent queue alarm &key proxy &allow-other-keys)
+(defun tracker-loop (tracker torrent queue alarm &key proxy &allow-other-keys)
   "Query tracker periodically"
   (loop
      (handler-case
-         (let ((peers (get-peers torrent proxy)))
+         (let ((peers (get-peers tracker torrent proxy)))
            (dolist (peer peers) (enqueue peer queue))
            (signal-semaphore alarm)
-           (log-msg 2 :event :tracker :torrent (format-hash torrent) :proxy proxy :count (length peers)))
+           (log-msg 2 :event :tracker-ok :torrent (format-hash torrent) :tracker tracker :proxy proxy :count (length peers)))
        (error (e)
-         (log-msg 1 :event :notracker :torrent (format-hash torrent) :condition (type-of e))))
+         (log-msg 1 :event :tracker-fail :torrent (format-hash torrent) :tracker tracker :condition (type-of e))))
      (sleep *tracker-interval*)))
 
-(defun open-tracker (torrent queue alarm &rest rest)
+(defun open-tracker (tracker torrent queue alarm &rest rest)
   "Start tracker loop"
-  (make-thread (lambda () (apply #'tracker-loop torrent queue alarm rest)) :name "centrality-tracker"))
+  (make-thread (lambda () (apply #'tracker-loop tracker torrent queue alarm rest)) :name "centrality-tracker"))

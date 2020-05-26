@@ -60,6 +60,15 @@ A blacklist can be specified in a functional manner (a contrived example, admitt
   (start torrent :blacklist #'blacklist))
 ```
 
+Additional trackers can be added, e.g.:
+
+```lisp
+(let ((torrent (read-torrent "/path/to/torrent/file")))
+  (start torrent :trackers '("http://tracker.archlinux.org:6969/announce" "http://bttracker.debian.org:6969/announce")))
+```
+
+At the moment, UDP trackers are not supported.
+
 **Fifth**, cross the fingers. If all goes well, eventually there will be a message saying `:event :finish`. All the started processes will still be dangling and can be shutdown manually in a crude but effective fashion:
 
 ```lisp
