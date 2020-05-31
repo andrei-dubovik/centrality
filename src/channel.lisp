@@ -4,13 +4,6 @@
 
 (in-package :centrality)
 
-(defparameter *clock* (ceiling internal-time-units-per-second 10))
-(defparameter *precision* (coerce internal-time-units-per-second 'float))
-(defparameter *minimum-window* 256) ; primitive congestion control
-(defparameter *call-sign* "-CY0000-")
-(defparameter *call-name* "Centrality 0.0")
-(defparameter *extensions* (ash 1 20)) ; extension protocol
-
 ;; Call sign
 
 (defun random-peerid ()

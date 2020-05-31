@@ -61,10 +61,6 @@
 
 ;; BitTorrent Extension
 
-(defparameter *p* #xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A63A36210000000000090563)
-(defparameter *vc* (zero-bytes 8))
-(defparameter *crypto-provide* (literal-bytes 0 0 0 2))
-
 (define-condition rc4-refused (error) ())
 (define-condition padding-overflow (error) ())
 

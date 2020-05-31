@@ -4,11 +4,6 @@
 
 (in-package :centrality)
 
-(defparameter *user-agent* "Centrality/0.0")
-(defparameter *tracker-timeout* 120)
-(defparameter *tracker-interval* 600)
-(defparameter *listen-port* 6881) ; not implemented, sent to trackers
-
 (defun make-uri (host query)
   "An URI constructor that does not strive to be smart about type conversion"
   (concatenate 'string host "?"

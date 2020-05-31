@@ -7,10 +7,6 @@
 ;; *log* is set when the log process is started and it is used throughout the program
 (defvar *log*)
 
-;; Settings for how detailed the log should be
-(defparameter *level-file* 3)
-(defparameter *level-print* 2)
-
 (defun get-formatted-time ()
   "Get current time in ISO format"
   (multiple-value-bind (second minute hour date month year day daylight-p zone) (get-decoded-time)

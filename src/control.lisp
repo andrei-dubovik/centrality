@@ -4,10 +4,6 @@
 
 (in-package :centrality)
 
-(defparameter *no-connections* 10) ; number of simultaneous connections per torrent
-(defparameter *exploration* 0.5)   ; probability for selecting a fresh peer
-(defparameter *min-blocks* 1)      ; minimum number of downloaded blocks to consider a reconnect
-
 (defstruct peer
   ;; Managed by control.lisp
   address    ; ip address and port number

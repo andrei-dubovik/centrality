@@ -30,11 +30,12 @@ There will be some warnings as not all files are in a correct order...
 
 A log service is not strictly necessary, but right now there is no other way to see progress. At least this way, you can open the file with `less`, hit `F`, and enjoy the show.
 
-**Third**, we will need to set the downloads directory. There are a few other parameters scattered in the code (always at the top of source files), but this one is the only one required.
+**Third**, we will need to set the downloads directory.
 
 ```lisp
 (defparameter *file-dir* "~/centrality/downloads/") ; don't forget the trailing slash, no proper handling of pathnames yet...
 ```
+There are a few other configuration parameters available, see `src/params.lisp`.
 
 **Fourth**, initiate a download:
 

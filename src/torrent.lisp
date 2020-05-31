@@ -26,8 +26,6 @@
 
 ;; Internal structures for torrent bookkeeping
 
-(defparameter *block-length* (expt 2 14))
-
 (defstruct (file (:constructor make-file (size path)))
   size ; length in bytes
   path ; relative pathname

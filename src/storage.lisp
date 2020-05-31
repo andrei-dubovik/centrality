@@ -4,8 +4,6 @@
 
 (in-package :centrality)
 
-(defparameter *file-dir* "./")
-
 ;; TODO maybe make global torrent?
 
 (defun escape-pathname (pathname &optional (special "[]"))

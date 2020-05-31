@@ -50,7 +50,7 @@
         (collect (decode stream))
         (finally (read-byte stream))))
 
-(defparameter *key-hook* (lambda (key start end)))
+(defvar *key-hook* (lambda (key start end)))
 
 (defun decode-dict (stream)
   "Decode dictionary"

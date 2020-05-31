@@ -7,11 +7,6 @@
 (defvar *torrent*) ; a shared structure for torrent bookkeeping
 (defvar *peer*)    ; a private structure for peer bookkeeping
 
-(defparameter *protocol*
-  (conc-bytes 19 (string-to-octets "BitTorrent protocol")))
-
-(defparameter *ext-msg-ids* '(("ut_pex" . 1)))
-
 (defmacro eid (message)
   "Lookup extended id for a given message"
   (getvalue message *ext-msg-ids*))
