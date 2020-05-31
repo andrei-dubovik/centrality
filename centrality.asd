@@ -18,7 +18,7 @@
                (:file "src/bencode")
                (:file "src/torrent")
                (:file "src/tracker")
-               (:file "src/messages")
+               (:file "src/network")
                (:file "src/storage")
                (:file "src/channel")
                (:file "src/control")))
