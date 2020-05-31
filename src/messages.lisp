@@ -10,6 +10,12 @@
 (defparameter *protocol*
   (conc-bytes 19 (string-to-octets "BitTorrent protocol")))
 
+(defparameter *ext-msg-ids* '(("ut_pex" . 1)))
+
+(defmacro eid (message)
+  "Lookup extended id for a given message"
+  (getvalue message *ext-msg-ids*))
+
 (defun send-handshake (exts hash peerid &optional (stream *stream*))
   "Send BitTorrent handshake message"
   (write-list

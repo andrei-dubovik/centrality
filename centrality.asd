@@ -17,7 +17,6 @@
                (:file "src/bencode")
                (:file "src/torrent")
                (:file "src/tracker")
-               (:file "src/messages-macros")
                (:file "src/messages")
                (:file "src/storage")
                (:file "src/channel")
