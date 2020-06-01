@@ -11,6 +11,7 @@
                (:file "src/math")
                (:file "src/bytes")
                (:file "src/params")
+               (:file "src/messages")
                (:file "src/log")
                (:file "src/socks")
                (:file "src/openssl")

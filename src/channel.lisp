@@ -14,13 +14,18 @@
   "Prepare extended handshake"
   `(("m" . ,*ext-msg-ids*) ("v" . ,(encode-string *call-name*))))
 
-;; Five dynamics contexts are used, all five are established by (open-channel ...)
+;; A number of dynamic contexts are used, all are established by (open-channel ...)
+;; (These dynamic contexts will be phased out in future versions of the program)
 
 (defvar *socket*)    ; connection socket
-(defvar *stream*)    ; encoded stream used to communicate with the peer
+(defvar *network*)   ; a class containing encoded stream used to communicate with the peer
 (defvar *torrent*)   ; a shared structure for torrent bookkeeping
 (defvar *peer*)      ; a shared structure for peer bookkeeping
 (defvar *new-peers*) ; a message queue for new peers, and the corresponding semaphore
+
+;; Work in progress
+
+(defclass peer2 () ())
 
 ;; Scheduler
 
@@ -32,7 +37,36 @@
     (find-if (lambda (i) (zerop (sbit mask i)))
              (random-permutation (tr-no-pieces *torrent*)))))
 
+;; Logging
+
+(defun message-digest (msg)
+  "Substitute byte fields with their sizes (for the logs)"
+  (mapcar
+   (lambda (field)
+     (if (arrayp field) (length field) field))
+   msg))
+
+(defun log-torrent-msg (id args event)
+  "Log BitTorrent message"
+  (log-msg
+   (case id
+     ((:request :piece) 4)
+     (t 3))
+   :event event :torrent (format-hash *torrent*) :peer (peer-address *peer*) :msg (cons id (message-digest args))))
+
+(defcall method :before ((peer peer2) &rest args)
+  "Log incoming BitTorrent message"
+  (log-torrent-msg method args :msg-recv))
+
+(defcall method :before ((network network) &rest args)
+  "Log outgoing BitTorrent message"
+  (log-torrent-msg method args :msg-sent))
+
 ;; Sending messages
+
+(defmacro send (msg)
+  "A shorthand for (call network ...)"
+  `(call *network* ,@msg))
 
 (defun request-piece (pid)
   "Queue one piece for download in random order"
@@ -57,50 +91,41 @@
 
 ;; Receiving messages
 
-(defgeneric process (type body)
-  (:documentation "Process incoming message"))
-
-(defmethod process (type body))
-
-(defmethod process ((type (eql :unchoke)) body)
+(defcall :unchoke ((peer peer2) &args)
   (setf (peer-choked *peer*) nil))
 
-(defmethod process ((type (eql :choke)) body)
+(defcall :choke ((peer peer2) &args)
   (setf (peer-choked *peer*) t))
 
-(defmethod process ((type (eql :bitfield)) body)
+(defcall :bitfield ((peer peer2) &args bitfield)
   "Set initial bitfield"
-  (destructuring-bind (bitfield) body
-    (bytes-bit-vector bitfield (peer-avl-mask *peer*))))
+  (bytes-bit-vector bitfield (peer-avl-mask *peer*)))
 
-(defmethod process ((type (eql :have)) body)
+(defcall :have ((peer peer2) &args pid)
   "Register a new available piece"
-  (destructuring-bind (pid) body
-    (setf (sbit (peer-avl-mask *peer*) pid) 1)))
+  (setf (sbit (peer-avl-mask *peer*) pid) 1))
 
 (define-condition block-bad-offset (error) ())
 (define-condition block-bad-size (error) ())
 
-(defmethod process ((type (eql :piece)) body)
+(defcall :piece ((peer peer2) &rest args &args pid offset block)
   "Check block for errors, send to storage thread"
-  (destructuring-bind (pid offset block) body
-    (multiple-value-bind (bid rem) (floor offset *block-length*)
-      (if (not (zerop rem)) (error 'block-bad-offset))
-      (if (not (eql (length block) (block-length pid bid *torrent*)))
-          (error 'block-bad-size)))
-    (decf (peer-window *peer*)))
+  (multiple-value-bind (bid rem) (floor offset *block-length*)
+    (if (not (zerop rem)) (error 'block-bad-offset))
+    (if (not (eql (length block) (block-length pid bid *torrent*)))
+        (error 'block-bad-size)))
+  (decf (peer-window *peer*))
   (incf (peer-no-blocks *peer*))
-  (send-msg (tr-queue *torrent*) body))
+  (send-msg (tr-queue *torrent*) args))
 
 ;; Receiving extended messages
 
-(defmethod process ((type (eql :ext-pex)) body)
+(defcall :ext-pex ((peer peer2) &args peers)
   "Register new peers with the control thread"
-  (destructuring-bind (peers) body
-    (destructuring-bind (queue . alarm) *new-peers*
-      (dolist (peer (split-peers (getvalue "added" peers) 6))
-        (enqueue peer queue))
-      (signal-semaphore alarm))))
+  (destructuring-bind (queue . alarm) *new-peers*
+    (dolist (peer (split-peers (getvalue "added" peers) 6))
+      (enqueue peer queue))
+    (signal-semaphore alarm)))
 
 ;; Handshake
 
@@ -138,33 +163,34 @@
 
 (define-condition closed-connection (error) ())
 
-(defun channel-loop (clock timeout)
+(defun channel-loop (clock timeout peer2)
   "Receive messages on arrival, send messages at regular intervals"
-  (declare (optimize (debug 0))) ; tail-call optimization required
-  (multiple-value-bind (socket remain)
-      (wait-for-input *socket* :timeout timeout)
-    (declare (ignore socket))
-    (symbol-macrolet ((tick (ceiling (- (1+ (get-internal-real-time)) clock) *clock*))) ; missed clock cycles
+  (declare (optimize (debug 0)))     ; tail-call optimization required
+  (let ((stream (.stream *network*))) ; A temporary solution, *network* belongs in peer2
+    (multiple-value-bind (socket remain)
+        (wait-for-input *socket* :timeout timeout)
+      (declare (ignore socket))
+      (symbol-macrolet ((tick (ceiling (- (1+ (get-internal-real-time)) clock) *clock*))) ; missed clock cycles
 
-      ;; a hackish way to detect a closed connection
-      ;; (see https://stackoverflow.com/questions/61306791)
-      (if (and (eql timeout remain) (not (listen *stream*)))
-          (error 'closed-connection))
+        ;; a hackish way to detect a closed connection
+        ;; (see https://stackoverflow.com/questions/61306791)
+        (if (and (eql timeout remain) (not (listen stream)))
+            (error 'closed-connection))
 
-      ;; receive messages if any
-      (while (and (listen *stream*) (<= tick 0))
-        (destructuring-bind (type &rest rest) (recv)
-          (process type rest)))
+        ;; receive messages if any
+        (while (and (listen stream) (<= tick 0))
+          (apply #'call peer2 (receive-message stream)))
 
-      ;; send messages if it is time or if overdue
-      (when (> tick 0)
-        (send-messages)
-        (setq clock (+ clock *clock*))))
+        ;; send messages if it is time or if overdue
+        (when (> tick 0)
+          (send-messages)
+          (setq clock (+ clock *clock*))))
 
-    ;; shedule next operation
-    (channel-loop
-     clock
-     (/ (max (- clock (get-internal-real-time)) 0) *precision*))))
+      ;; shedule next operation
+      (channel-loop
+       clock
+       (/ (max (- clock (get-internal-real-time)) 0) *precision*)
+       peer2))))
 
 (defun channel-init (torrent peer queue alarm &rest rest)
   "Establish dynamic contexts, connect to peer and start trasnferring"
@@ -173,10 +199,10 @@
          (let* ((*torrent* torrent)
                 (*peer* peer)
                 (*socket* socket)
-                (*stream* (peer-connect))
+                (*network* (make-instance 'network :stream (peer-connect)))
                 (*new-peers* (cons queue alarm)))
            (send-init)
-           (channel-loop (get-internal-real-time) 0))
+           (channel-loop (get-internal-real-time) 0 (make-instance 'peer2)))
       (socket-close socket))))
 
 (defun channel-catch (torrent peer queue alarm &rest rest)

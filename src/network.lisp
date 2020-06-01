@@ -4,8 +4,10 @@
 
 (in-package :centrality)
 
-(defvar *torrent*) ; a shared structure for torrent bookkeeping
-(defvar *peer*)    ; a private structure for peer bookkeeping
+;; Work in progress
+
+(defclass network ()
+  ((stream :initarg :stream :reader .stream)))
 
 (defmacro eid (message)
   "Lookup extended id for a given message"
@@ -59,84 +61,50 @@
             (t (error 'unknown-message-id))))
         '(:keepalive))))
 
-(defun send-extended (id msg stream)
+(defun send-extended (id args stream)
   "Send BitTorrent message"
   (let ((*stream* stream))
     (case id
       (:ext-handshake
-       (destructuring-bind (handshake) msg
+       (destructuring-bind (handshake) args
          (multiple-value-bind (bytes len) (encode-to-bytes handshake)
            (write-int (+ len 2) 4)
            (write-int 20 1) (write-int 0 1)
            (write-bytes bytes)))))))
 
-(defun send-message (msg stream)
+(defcall id ((network network) &rest args)
   "Send BitTorrent message"
-  (let ((*stream* stream))
-    (destructuring-bind (id &rest msg) msg
-      (case id
-        (:keepalive     (write-int 0 4))
-        (:choke         (write-int 1 4) (byte-write 0))
-        (:unchoke       (write-int 1 4) (byte-write 1))
-        (:interested    (write-int 1 4) (byte-write 2))
-        (:notinterested (write-int 1 4) (byte-write 3))
-        (:have
-         (destructuring-bind (piece-index) msg
-           (write-int 5 4) (byte-write 4)
-           (write-int piece-index 4)))
-        (:bitfield
-         (destructuring-bind (bitfield) msg
-           (write-int (1+ (length bitfield)) 4)
-           (byte-write 5)
-           (write-bytes bitfield)))
-        (:request
-         (destructuring-bind (index begin length) msg
-           (write-int 13 4) (byte-write 6)
-           (write-int index 4) (write-int begin 4) (write-int length 4)))
-        (:piece
-         (destructuring-bind (index begin block) msg
-           (write-int (+ 9 (length block)) 4)
-           (byte-write 7)
-           (write-int index 4) (write-int begin 4) (write-bytes block)))
-        (:cancel
-         (destructuring-bind (index begin length) msg
-           (write-int 13 4) (byte-write 8)
-           (write-int index 4) (write-int begin 4) (write-int length 4)))
-        (:port
-         (destructuring-bind (listen-port) msg
-           (write-int 3 4) (byte-write 9) (write-int listen-port 2)))
-        (t (send-extended id msg stream)))))
-  (finish-output stream))
-
-(defun message-digest (msg)
-  "Substitute byte fields with their sizes (for the logs)"
-  (mapcar
-   (lambda (field)
-     (if (arrayp field) (length field) field))
-   msg))
-
-;; TODO: uses *peer* (should either add "peer" explicitly, or replace "stream" with "*stream*")
-(defun log-torrent-msg (msg event)
-  "Log BitTorrent message"
-  (let* ((id (car msg))
-         (level (if (or (eql id :request) (eql id :piece)) 4 3)))
-    (log-msg level :event event :torrent (format-hash *torrent*) :peer (peer-address *peer*) :msg (message-digest msg))))
-
-(defun receive-and-log (stream)
-  "Receive and log BitTorrent message"
-  (let* ((msg (receive-message stream)))
-    (log-torrent-msg msg :msg-recv)
-    msg))
-
-(defun send-and-log (msg stream)
-  "Send and log BitTorrent message"
-  (send-message msg stream)
-  (log-torrent-msg msg :msg-sent))
-
-(defmacro recv (&optional (stream '*stream*))
-  "A wrapper around receive-and-log with a shorter name"
-  `(receive-and-log ,stream))
-
-(defmacro send (msg &optional (stream '*stream*))
-  "A wrapper around send-and-log to avoid typing **list**, and with a shorter name"
-  `(send-and-log ,(cons 'list msg) ,stream))
+  (let ((*stream* (.stream network)))
+    (case id
+      (:keepalive     (write-int 0 4))
+      (:choke         (write-int 1 4) (byte-write 0))
+      (:unchoke       (write-int 1 4) (byte-write 1))
+      (:interested    (write-int 1 4) (byte-write 2))
+      (:notinterested (write-int 1 4) (byte-write 3))
+      (:have
+       (destructuring-bind (piece-index) args
+         (write-int 5 4) (byte-write 4)
+         (write-int piece-index 4)))
+      (:bitfield
+       (destructuring-bind (bitfield) args
+         (write-int (1+ (length bitfield)) 4)
+         (byte-write 5)
+         (write-bytes bitfield)))
+      (:request
+       (destructuring-bind (index begin length) args
+         (write-int 13 4) (byte-write 6)
+         (write-int index 4) (write-int begin 4) (write-int length 4)))
+      (:piece
+       (destructuring-bind (index begin block) args
+         (write-int (+ 9 (length block)) 4)
+         (byte-write 7)
+         (write-int index 4) (write-int begin 4) (write-bytes block)))
+      (:cancel
+       (destructuring-bind (index begin length) args
+         (write-int 13 4) (byte-write 8)
+         (write-int index 4) (write-int begin 4) (write-int length 4)))
+      (:port
+       (destructuring-bind (listen-port) args
+         (write-int 3 4) (byte-write 9) (write-int listen-port 2)))
+      (t (send-extended id args *stream*)))
+    (finish-output *stream*)))
