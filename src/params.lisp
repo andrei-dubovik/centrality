@@ -5,6 +5,8 @@
 ;; Changing some of the parameters requires recompilation for the
 ;; changes to take effect.
 
+(in-package :centrality)
+
 ;; Identification
 
 (defparameter *call-sign* "-CY0000-")        ; base protocol identification
