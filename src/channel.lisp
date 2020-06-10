@@ -21,7 +21,7 @@
 (defvar *network*)   ; a class containing encoded stream used to communicate with the peer
 (defvar *torrent*)   ; a shared structure for torrent bookkeeping
 (defvar *peer*)      ; a shared structure for peer bookkeeping
-(defvar *new-peers*) ; a message queue for new peers, and the corresponding semaphore
+(defvar *control*)   ; control thread identifier (new peers are sent there)
 
 ;; Work in progress
 
@@ -64,14 +64,14 @@
 
 ;; Sending messages
 
-(defmacro send (msg)
+(defmacro send-network (msg)
   "A shorthand for (call network ...)"
   `(call *network* ,@msg))
 
 (defun request-piece (pid)
   "Queue one piece for download in random order"
   (iter (for bid in-vector (random-permutation (piece-size pid *torrent*)))
-        (send (:request pid (* bid *block-length*) (block-length pid bid *torrent*))))
+        (send-network (:request pid (* bid *block-length*) (block-length pid bid *torrent*))))
   (setf (sbit (peer-req-mask *peer*) pid) 1)
   (incf (peer-window *peer*) (piece-size pid *torrent*)))
 
@@ -85,9 +85,9 @@
 
 (defun send-init ()
   "Send initial messages"
-  (send (:interested))
+  (send-network (:interested))
   (if (logbitp 20 (peer-exts *peer*))
-      (send (:ext-handshake (ext-handshake)))))
+      (send-network (:ext-handshake (ext-handshake)))))
 
 ;; Receiving messages
 
@@ -122,10 +122,7 @@
 
 (defcall :ext-pex ((peer peer2) &args peers)
   "Register new peers with the control thread"
-  (destructuring-bind (queue . alarm) *new-peers*
-    (dolist (peer (split-peers (getvalue "added" peers) 6))
-      (enqueue peer queue))
-    (signal-semaphore alarm)))
+  (send *control* :peers (split-peers (getvalue "added" peers) 6)))
 
 ;; Handshake
 
@@ -192,7 +189,7 @@
        (/ (max (- clock (get-internal-real-time)) 0) *precision*)
        peer2))))
 
-(defun channel-init (torrent peer queue alarm &rest rest)
+(defun channel-init (torrent peer control &rest rest)
   "Establish dynamic contexts, connect to peer and start trasnferring"
   (let ((socket (apply #'open-tcp (peer-address peer) rest)))
     (unwind-protect
@@ -200,19 +197,19 @@
                 (*peer* peer)
                 (*socket* socket)
                 (*network* (make-instance 'network :stream (peer-connect)))
-                (*new-peers* (cons queue alarm)))
+                (*control* control))
            (send-init)
            (channel-loop (get-internal-real-time) 0 (make-instance 'peer2)))
       (socket-close socket))))
 
-(defun channel-catch (torrent peer queue alarm &rest rest)
+(defun channel-catch (torrent peer control &rest rest)
   "A wrapper around channel-init that handles conditions"
-  (handler-case (apply #'channel-init torrent peer queue alarm rest)
+  (handler-case (apply #'channel-init torrent peer control rest)
     (error (e)
       (setf (peer-active peer) nil)
-      (signal-semaphore alarm)
+      (send control :respawn)
       (log-msg 2 :event :abort :hash (format-hash torrent) :peer (peer-address peer) :condition (type-of e)))))
 
-(defun open-channel (torrent peer queue alarm &rest rest)
+(defun open-channel (torrent peer control &rest rest)
   "Initiate peer connection in a separate thread"
-  (make-thread (lambda () (apply #'channel-catch torrent peer queue alarm rest)) :name "centrality-channel"))
+  (make-thread (lambda () (apply #'channel-catch torrent peer control rest)) :name "centrality-channel"))

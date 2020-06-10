@@ -59,18 +59,17 @@
 
 ;; Tracker logic is basic: query tracker periodically, ignore errors but log them.
 
-(defun tracker-loop (tracker torrent queue alarm &key proxy &allow-other-keys)
+(defun tracker-loop (tracker torrent control &key proxy &allow-other-keys)
   "Query tracker periodically"
   (loop
      (handler-case
          (let ((peers (get-peers tracker torrent proxy)))
-           (dolist (peer peers) (enqueue peer queue))
-           (signal-semaphore alarm)
+           (send control :peers peers)
            (log-msg 2 :event :tracker-ok :torrent (format-hash torrent) :tracker tracker :proxy proxy :count (length peers)))
        (error (e)
          (log-msg 1 :event :tracker-fail :torrent (format-hash torrent) :tracker tracker :condition (type-of e))))
      (sleep *tracker-interval*)))
 
-(defun open-tracker (tracker torrent queue alarm &rest rest)
+(defun open-tracker (tracker torrent control &rest rest)
   "Start tracker loop"
-  (make-thread (lambda () (apply #'tracker-loop tracker torrent queue alarm rest)) :name "centrality-tracker"))
+  (make-thread (lambda () (apply #'tracker-loop tracker torrent control rest)) :name "centrality-tracker"))

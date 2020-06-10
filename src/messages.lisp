@@ -14,6 +14,8 @@
        (if (,test (car ,form)) (cons (list (car ,form)) (cdr ,form)) (cons nil ,form))
      ,@body))
 
+;; TODO: add support for (defcall :method ((state1 class1) state2 state3 &args ...)
+;; TODO: make object explicit (so that tooltips are informative)
 (defmacro defcall (method &rest rest)
   "A convenience wrapper for defining methods that process messages"
   (with-gensym (rest-var)
@@ -32,3 +34,47 @@
 
 (defcall method (object &args)
   "Silently ignore unknown messages")
+
+(defvar *thread-counter* (cons (make-lock) 0))
+
+(defun incf-thread-counter ()
+  "Thread safe increment of *thread-counter*"
+  (with-lock-held ((car *thread-counter*))
+    (incf (cdr *thread-counter*))))
+
+(defun function-name (func)
+  "Return function name as a lowercased string"
+  (let ((name (nth-value 2 (function-lambda-expression func))))
+    (if (symbolp name) (string-downcase (symbol-name name)) "lambda")))
+
+(defun gen-thread-name (func)
+  "Generate a new unique thread name"
+  (string-join
+   (list *basename* (function-name func) (write-to-string (incf-thread-counter))) "-"))
+
+(defun spawn (worker &rest args)
+  "Start a new thread, return its communication channel"
+  (let ((channel (make-mailbox)))
+    (make-thread (lambda () (apply worker channel args)) :name (gen-thread-name worker))
+    channel))
+
+;; "send" and "recieve" are there for naming consistency
+;; TODO: remove send-msg, recv-msg
+
+(defmacro send (mailbox &rest msg)
+  "Send a message to a mailbox associated with a thread"
+  `(send-msg ,mailbox (list ,@msg)))
+
+(defmacro receive (mailbox)
+  "Receice a message"
+  `(recv-msg ,mailbox))
+
+(defmacro defworker (name args &body body)
+  "Define a worker that can recieve messages and that can be started with spawn"
+  (match-prefix ((documentation stringp) &body body) body
+    (with-gensym (channel)
+      `(defun ,name ,(cons channel args)
+         ,@documentation
+         (macrolet ((receive () (macroexpand '(receive ,channel)))
+                    (channel () ',channel))
+           ,@body)))))

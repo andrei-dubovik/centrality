@@ -12,6 +12,7 @@
 (defparameter *call-sign* "-CY0000-")        ; base protocol identification
 (defparameter *call-name* "Centrality 0.0")  ; extended protocol identification
 (defparameter *user-agent* "Centrality/0.0") ; identification for http trackers
+(defparameter *basename* "centrality")       ; used internally as a prefix for thread names
 
 ;; File operations
 
