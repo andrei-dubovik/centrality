@@ -52,10 +52,34 @@
   (string-join
    (list *basename* (function-name func) (write-to-string (incf-thread-counter))) "-"))
 
-(defun spawn (worker &rest args)
-  "Start a new thread, return its communication channel"
+(defun make-thread-pool ()
+  "Create a new thread pool"
+  (cons (make-lock) (dll-new)))
+
+(defmacro dopool ((var list) &body body)
+  "Iterate over a thread pool"
+  `(dodll (,var (cdr ,list))
+     ,@body))
+
+(defun spawn (pool worker &rest args)
+  "Start a new thread, add it to the pool, return its communication channel"
   (let ((channel (make-mailbox)))
-    (make-thread (lambda () (apply worker channel args)) :name (gen-thread-name worker))
+    (if pool
+        ;; Pool available
+        (let ((channel* (with-lock-held ((car pool))
+                          (dll-append (cdr pool) channel))))
+          (flet ((finilize ()
+                   (with-lock-held ((car pool))
+                     (dll-remove channel*))))
+            (make-thread
+             (lambda ()
+               (apply worker channel #'finilize args))
+             :name (gen-thread-name worker))))
+
+        ;; Pool unavailable
+        (make-thread
+         (lambda () (apply worker channel (lambda ()) args))
+         :name (gen-thread-name worker)))
     channel))
 
 ;; "send" and "recieve" are there for naming consistency
@@ -72,9 +96,11 @@
 (defmacro defworker (name args &body body)
   "Define a worker that can recieve messages and that can be started with spawn"
   (match-prefix ((documentation stringp) &body body) body
-    (with-gensym (channel)
-      `(defun ,name ,(cons channel args)
+    (with-gensym (channel finilize)
+      `(defun ,name ,(list* channel finilize args)
          ,@documentation
          (macrolet ((receive () (macroexpand '(receive ,channel)))
                     (channel () ',channel))
-           ,@body)))))
+           (unwind-protect
+                (progn ,@body)
+             (funcall ,finilize)))))))

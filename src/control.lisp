@@ -101,4 +101,4 @@
 
 (defun start (torrent &rest rest)
   "Start torrent download"
-  (apply #'spawn #'control-loop torrent rest))
+  (apply #'spawn nil #'control-loop torrent rest))
