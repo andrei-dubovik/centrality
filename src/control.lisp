@@ -78,7 +78,7 @@
     (setstruct (peer peer)
       (:active t)
       (:no-blocks 0))
-    (apply #'open-channel (.torrent state) peer (.channel state) (.args state))))
+    (apply #'spawn nil #'channel-catch (.torrent state) peer (.channel state) (.args state))))
 
 (defcall :tracker ((state control) &args tracker)
   "Start a new thread that regulary pulls from a tracker"

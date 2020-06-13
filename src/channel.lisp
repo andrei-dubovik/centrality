@@ -202,14 +202,10 @@
            (channel-loop (get-internal-real-time) 0 (make-instance 'peer2)))
       (socket-close socket))))
 
-(defun channel-catch (torrent peer control &rest rest)
+(defworker channel-catch (torrent peer control &rest rest)
   "A wrapper around channel-init that handles conditions"
   (handler-case (apply #'channel-init torrent peer control rest)
     (error (e)
       (setf (peer-active peer) nil)
       (send control :respawn)
       (log-msg 2 :event :abort :hash (format-hash torrent) :peer (peer-address peer) :condition (type-of e)))))
-
-(defun open-channel (torrent peer control &rest rest)
-  "Initiate peer connection in a separate thread"
-  (make-thread (lambda () (apply #'channel-catch torrent peer control rest)) :name "centrality-channel"))
