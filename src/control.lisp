@@ -86,15 +86,16 @@
 
 (defworker control-loop (torrent &rest rest &key (blacklist #'empty-blacklist) trackers &allow-other-keys)
   "Initiate new connections, keep track of past and present peers"
-  (let ((state
-         (make-instance
-          'control
-          :channel (channel)
-          :torrent (new-tr torrent) ; TODO: move this initialization higher up the stack
-          :blacklist blacklist
-          :args rest)))
-    (open-storage (.torrent state))
-    (dolist (tracker (adjoin (tr-announce (.torrent state)) trackers :test #'equalp))
+  (let* ((state
+          (make-instance
+           'control
+           :channel (channel)
+           :torrent (new-tr torrent) ; TODO: move this initialization higher up the stack
+           :blacklist blacklist
+           :args rest))
+         (torrent (.torrent state)))
+    (setf (tr-queue torrent) (spawn nil #'storage-loop torrent))
+    (dolist (tracker (adjoin (tr-announce torrent) trackers :test #'equalp))
       (send (channel) :tracker tracker))
     (while (msg = (receive))
       (apply #'call state msg))))

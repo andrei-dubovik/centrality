@@ -4,7 +4,9 @@
 
 (in-package :centrality)
 
-;; TODO maybe make global torrent?
+;; TODO: replace composition with inheritance
+(defclass storage ()
+  ((torrent :initarg :torrent :reader .torrent)))
 
 (defun escape-pathname (pathname &optional (special "[]"))
   "Escape certain special characters in a pathname"
@@ -79,10 +81,10 @@
   "Verify downloaded piece"
   (equalp (sha1 piece) (svref (tr-pieces torrent) pid)))
 
-(defun process-block (block torrent)
+(defcall :block ((state storage) &args pid offset block)
   "Cache, verify checksum and save if piece is complete"
-  (destructuring-bind (pid offset block) block
-    (if (eql (sbit (tr-piece-mask torrent) pid) 1) (return-from process-block)) ; already verified
+  (let ((torrent (.torrent state)))
+    (if (eql (sbit (tr-piece-mask torrent) pid) 1) (return-from call)) ; already verified
     (let ((bid (/ offset *block-length*))
           (mask (svref (tr-block-mask torrent) pid))
           (cache (tr-cache torrent)))
@@ -134,20 +136,16 @@
 
 ;; Event loop
 
-(defun storage-loop (torrent)
+(defworker storage-loop (torrent)
   "Wait on new blocks and process them"
   (log-msg 1 :event :start :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
-  (load-files torrent)
-  (unwind-protect
-       (while (block = (recv-msg (tr-queue torrent)))
-         (process-block block torrent)
-         (when (bit-onep (tr-piece-mask torrent))
-           (log-msg 1 :event :finish :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
-           (format t "Download complete~%")
-           (return-from storage-loop)))
-    (close-files torrent)))
-
-(defun open-storage (torrent)
-  "Open a new storage that can accept incoming blocks"
-  (setf (tr-queue torrent) (make-mailbox))
-  (make-thread (lambda () (storage-loop torrent)) :name "centrality-storage"))
+  (let ((state (make-instance 'storage :torrent torrent)))
+    (load-files torrent)
+    (unwind-protect
+         (while (msg = (receive))
+           (apply #'call state msg)
+           (when (bit-onep (tr-piece-mask torrent))
+             (log-msg 1 :event :finish :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
+             (format t "Download complete~%")
+             (return-from storage-loop)))
+      (close-files torrent))))

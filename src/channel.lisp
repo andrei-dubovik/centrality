@@ -108,7 +108,7 @@
 (define-condition block-bad-offset (error) ())
 (define-condition block-bad-size (error) ())
 
-(defcall :piece ((peer peer2) &rest args &args pid offset block)
+(defcall :piece ((peer peer2) &args pid offset block)
   "Check block for errors, send to storage thread"
   (multiple-value-bind (bid rem) (floor offset *block-length*)
     (if (not (zerop rem)) (error 'block-bad-offset))
@@ -116,7 +116,7 @@
         (error 'block-bad-size)))
   (decf (peer-window *peer*))
   (incf (peer-no-blocks *peer*))
-  (send-msg (tr-queue *torrent*) args))
+  (send (tr-queue *torrent*) :block pid offset block))
 
 ;; Receiving extended messages
 
