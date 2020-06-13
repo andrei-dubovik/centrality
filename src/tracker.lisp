@@ -59,7 +59,7 @@
 
 ;; Tracker logic is basic: query tracker periodically, ignore errors but log them.
 
-(defun tracker-loop (tracker torrent control &key proxy &allow-other-keys)
+(defworker tracker-loop (tracker torrent control &key proxy &allow-other-keys)
   "Query tracker periodically"
   (loop
      (handler-case
@@ -69,7 +69,3 @@
        (error (e)
          (log-msg 1 :event :tracker-fail :torrent (format-hash torrent) :tracker tracker :condition (type-of e))))
      (sleep *tracker-interval*)))
-
-(defun open-tracker (tracker torrent control &rest rest)
-  "Start tracker loop"
-  (make-thread (lambda () (apply #'tracker-loop tracker torrent control rest)) :name "centrality-tracker"))

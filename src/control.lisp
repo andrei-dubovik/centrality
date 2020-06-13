@@ -82,7 +82,7 @@
 
 (defcall :tracker ((state control) &args tracker)
   "Start a new thread that regulary pulls from a tracker"
-  (apply #'open-tracker tracker (.torrent state) (.channel state) (.args state)))
+  (apply #'spawn nil #'tracker-loop tracker (.torrent state) (.channel state) (.args state)))
 
 (defworker control-loop (torrent &rest rest &key (blacklist #'empty-blacklist) trackers &allow-other-keys)
   "Initiate new connections, keep track of past and present peers"
