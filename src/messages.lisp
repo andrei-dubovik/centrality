@@ -89,6 +89,10 @@
   "Send a message to a mailbox associated with a thread"
   `(send-msg ,mailbox (list ,@msg)))
 
+(defmacro send* (mailbox &rest msg)
+  "Send a message to a mailbox associated with a thread (the last argument gets unpacked)"
+  `(send-msg ,mailbox (list* ,@msg)))
+
 (defmacro receive (mailbox)
   "Receice a message"
   `(recv-msg ,mailbox))

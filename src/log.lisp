@@ -7,6 +7,9 @@
 ;; *log* is set when the log process is started and it is used throughout the program
 (defvar *log*)
 
+(defclass logger ()
+  ((fd :initarg :fd :reader .fd)))
+
 (defun get-formatted-time ()
   "Get current time in ISO format"
   (multiple-value-bind (second minute hour date month year day daylight-p zone) (get-decoded-time)
@@ -19,31 +22,32 @@
   (write-char #\Newline stream)
   (finish-output stream))
 
-(defun log-msg (level &rest plist &key &allow-other-keys)
+(defun log-msg (level &rest msg)
   "Send message to the log thread"
   (if *log*
-      (send-msg *log* (list* (get-formatted-time) :level level plist))))
+      (send* *log* :log (get-formatted-time) :level level msg)))
+
+(defcall :log ((state logger) &rest msg &args time &key level &allow-other-keys)
+  "Log message to a file and standard output"
+  (declare (ignore time))
+  (if (<= level *level-print*) (print-line msg))
+  (if (<= level *level-file*) (print-line msg (.fd state))))
 
 ;; Event loop
 
-(defun log-loop (file)
+(defworker log-loop (file)
   "Receive and log messages"
-  (macrolet ((print-msg ()
-               `(let ((level (third msg)))
-                  (if (<= level *level-print*) (print-line msg))
-                  (if (<= level *level-file*) (print-line msg out)))))
-    (ensure-directories-exist file)
-    (let ((out (open file :direction :output :if-exists :append :if-does-not-exist :create)))
-      (unwind-protect
-           (while (msg = (recv-msg *log*))
-             (print-msg))
-        (let ((msg (list (get-formatted-time) :level 1 :event :log-close)))
-          (print-msg))
-        (close out))))) ; (setq *log* nil) belongs elsewhere
+  (ensure-directories-exist file)
+  (let* ((out (open file :direction :output :if-exists :append :if-does-not-exist :create))
+         (state (make-instance 'logger :fd out)))
+    (unwind-protect
+         (progn
+           (call state :log (get-formatted-time) :level 1 :event :log-open :level-file *level-file* :level-print *level-print*)
+           (while (msg = (receive))
+             (apply #'call state msg)))
+      (call state :log (get-formatted-time) :level 1 :event :log-close)
+      (close out)))) ; (setq *log* nil) belongs elsewhere
 
-(defun open-log (file)
+(defun start-log (file)
   "Start logging thread"
-  (setq *log* (make-mailbox))
-  (let ((th (make-thread (lambda () (log-loop file)) :name "centrality-log")))
-    (log-msg 1 :event :log-open :level-file *level-file* :level-print *level-print*)
-    th))
+  (setq *log* (spawn nil #'log-loop file)))

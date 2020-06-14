@@ -25,10 +25,10 @@ There will be some warnings as not all files are in a correct order...
 **Second**, start a log service:
 
 ```lisp
-(open-log "~/centrality/log.txt")
+(start-log "~/centrality/log.txt")
 ```
 
-A log service is not strictly necessary, but right now there is no other way to see progress. At least this way, you can open the file with `less`, hit `F`, and enjoy the show.
+Starting a log service is optional, but right now there is no other way to see progress. At least this way, you can open the file with `less`, hit `F`, and enjoy the show.
 
 **Third**, we will need to set the downloads directory.
 
