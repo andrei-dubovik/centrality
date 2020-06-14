@@ -73,8 +73,7 @@ At the moment, UDP trackers are not supported.
 **Fifth**, cross the fingers. If all goes well, eventually there will be a message saying `:event :finish`. All the started processes will still be dangling and can be shutdown manually in a crude but effective fashion:
 
 ```lisp
-(dolist (sfx '("control" "tracker" "channel" "storage" "log"))
-  (dolist (th (all-threads))
-    (if (equal (thread-name th) (concatenate 'string "centrality-" sfx))
-        (destroy-thread th))))
+(dolist (thread (all-threads))
+  (if (alexandria:starts-with-subseq "centrality-" (thread-name thread))
+      (destroy-thread thread)))
 ```
