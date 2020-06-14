@@ -28,10 +28,9 @@
       (send* *log* :log (get-formatted-time) :level level msg)))
 
 (defcall :log ((state logger) &rest msg &args time &key level &allow-other-keys)
-  "Log message to a file and standard output"
+  "Log message to file"
   (declare (ignore time))
-  (if (<= level *level-print*) (print-line msg))
-  (if (<= level *level-file*) (print-line msg (.fd state))))
+  (if (<= level *max-log-level*) (print-line msg (.fd state))))
 
 ;; Event loop
 
@@ -42,7 +41,7 @@
          (state (make-instance 'logger :fd out)))
     (unwind-protect
          (progn
-           (call state :log (get-formatted-time) :level 1 :event :log-open :level-file *level-file* :level-print *level-print*)
+           (call state :log (get-formatted-time) :level 1 :event :log-open :max-log-level *max-log-level*)
            (while (msg = (receive))
              (apply #'call state msg)))
       (call state :log (get-formatted-time) :level 1 :event :log-close)

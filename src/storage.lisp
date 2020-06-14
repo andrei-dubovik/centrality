@@ -146,6 +146,5 @@
            (apply #'call state msg)
            (when (bit-onep (tr-piece-mask torrent))
              (log-msg 1 :event :finish :torrent (format-hash torrent) :name (tr-name torrent)) ; belongs in a control thread?
-             (format t "Download complete~%")
              (return-from storage-loop)))
       (close-files torrent))))

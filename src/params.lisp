@@ -39,8 +39,7 @@
 
 ;; Logging
 
-(defparameter *level-file* 3)
-(defparameter *level-print* 2)
+(defparameter *max-log-level* 3)
 
 ;; Protocol and extensions
 
