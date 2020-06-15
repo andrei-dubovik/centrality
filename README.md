@@ -22,13 +22,11 @@ Currently, it is possible to download a popular torrent or two. Less popular tor
 
 There will be some warnings as not all files are in a correct order...
 
-**Second**, start a log service:
+**Second**, optionally, start a log service:
 
 ```lisp
 (start-log "~/centrality/log.txt")
 ```
-
-Starting a log service is optional, but right now there is no other way to see progress. At least this way, you can open the file with `less`, hit `F`, and enjoy the show.
 
 **Third**, we will need to set the downloads directory.
 
@@ -40,15 +38,19 @@ There are a few other configuration parameters available, see `src/params.lisp`.
 **Fourth**, initiate a download:
 
 ```lisp
+(defparameter *torrents* (make-thread-pool))
+
 (let ((torrent (read-torrent "/path/to/torrent/file")))
-  (start torrent))
+  (start *torrents* torrent))
 ```
+
+The above code will create a new thread for managing the specified torrent, and it will add a reference to that thread's mailbox to `*torrents*`. The torrent will start downloading immediately. To start downloading multiple torrents simultaneously, just call `(start)` for each of them.
 
 A SOCKS5 proxy can be used, in which case the tracker request as well as peer connections are tunnelled via SOCKS. (Has been tested with SSH tunnelling.)
 
 ```lisp
 (let ((torrent (read-torrent "/path/to/torrent/file")))
-  (start torrent :proxy '(#(127 0 0 1) . 1080)))
+  (start *torrents* torrent :proxy '(#(127 0 0 1) . 1080)))
 ```
 
 A blacklist can be specified in a functional manner (a contrived example, admittedly):
@@ -58,19 +60,27 @@ A blacklist can be specified in a functional manner (a contrived example, admitt
   (equalp address '(#(127 0 0 1) . 6881))) ; Do not initiate connections with 127.0.0.1:6881
 
 (let ((torrent (read-torrent "/path/to/torrent/file")))
-  (start torrent :blacklist #'blacklist))
+  (start *torrents* torrent :blacklist #'blacklist))
 ```
 
 Additional trackers can be added, e.g.:
 
 ```lisp
 (let ((torrent (read-torrent "/path/to/torrent/file")))
-  (start torrent :trackers '("http://tracker.archlinux.org:6969/announce" "http://bttracker.debian.org:6969/announce")))
+  (start *torrents* torrent
+         :trackers '("http://tracker.archlinux.org:6969/announce"
+                     "http://bttracker.debian.org:6969/announce")))
 ```
 
 At the moment, UDP trackers are not supported.
 
-**Fifth**, cross the fingers. If all goes well, eventually there will be a message saying `:event :finish`. All the started processes will still be dangling and can be shutdown manually in a crude but effective fashion:
+**Fifth**, cross the fingers. If all goes well, the torrents will begin downloading. Basic progress report can be printed with
+
+```lisp
+(print-status *torrents*)
+```
+
+When the download finishes, all the started processes would still be dangling and can be shutdown manually in a crude but effective fashion:
 
 ```lisp
 (dolist (thread (all-threads))

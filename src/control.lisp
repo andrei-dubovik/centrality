@@ -84,6 +84,33 @@
   "Start a new thread that regulary pulls from a tracker"
   (apply #'spawn nil #'tracker-loop tracker (.torrent state) (.channel state) (.args state)))
 
+(defun count-peers (peers)
+  "Count peers with a breakdown by type"
+  (let ((total 0) (active 0) (waiting 0) (new 0))
+    (dohash ((address peer) peers)
+      (incf total)
+      (if (peer-no-blocks peer)
+          (if (peer-active peer)
+              (if (> (peer-no-blocks peer) 0)
+                  (incf active)
+                  (incf waiting)))
+          (incf new)))
+    (values total active waiting new)))
+
+(defcall :print-status ((state control) &args next)
+  "Print torrent status"
+  (let* ((torrent (.torrent state))
+         (mask (tr-piece-mask torrent)))
+    (format t "~a~%" (tr-name torrent))
+    (format t "Downloaded: ~1$%~%" (* 100 (/ (count 1 mask) (length mask))))
+    (format t "Cache: ~a pieces of ~a kB each~%"
+            (count-if-not #'null (tr-cache torrent))
+            (round (tr-piece-length torrent) 1024))
+    (multiple-value-bind (total active waiting new) (count-peers (.peers state))
+      (format t "Peers: ~a total, ~a active, ~a waiting, ~a new~%" total active waiting new))
+    (format t "~%"))
+  (if next (send (cdar next) :print-status (cdr next))))
+
 (defworker control-loop (torrent &rest rest &key (blacklist #'empty-blacklist) trackers &allow-other-keys)
   "Initiate new connections, keep track of past and present peers"
   (let* ((state
@@ -100,6 +127,13 @@
     (while (msg = (receive))
       (apply #'call state msg))))
 
-(defun start (torrent &rest rest)
+(defun start (pool torrent &rest rest)
   "Start torrent download"
-  (apply #'spawn nil #'control-loop torrent rest))
+  (apply #'spawn pool #'control-loop torrent rest))
+
+(defun print-status (pool)
+  "Print status for each active torrent"
+  (format t "===== STATUS REPORT ~a =====~%" (get-formatted-time))
+  (let ((next (cddr pool)))
+    (format t "Active torrents: ~a~%~%" (length next))
+    (if next (send (cdar next) :print-status (cdr next)))))

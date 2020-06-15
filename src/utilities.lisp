@@ -127,6 +127,17 @@
             ,@body
             (go ,begin)))))
 
+(defmacro dohash (((key value) hash-table) &body body)
+  "Iterate over a hash table"
+  (with-gensym (iterator begin status)
+    `(with-hash-table-iterator (,iterator ,hash-table)
+       (prog ()
+          ,begin
+          (multiple-value-bind (,status ,key ,value) (,iterator)
+            (when ,status
+              ,@body
+              (go ,begin)))))))
+
 ;; Bit-vector operations (TODO: switch to big integers?)
 
 (defun bit-zerop (array)
