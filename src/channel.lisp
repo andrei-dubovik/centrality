@@ -120,6 +120,11 @@
 
 ;; Receiving extended messages
 
+(defcall :ext-handshake ((peer peer2) &args msg)
+  "Process incoming extended handshake"
+  (let ((yourip (getvalue "yourip" msg)))
+    (if yourip (send *control* :yourip yourip))))
+
 (defcall :ext-pex ((peer peer2) &args peers)
   "Register new peers with the control thread"
   (send *control* :peers (split-peers (getvalue "added" peers) 6)))

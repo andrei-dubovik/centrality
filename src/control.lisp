@@ -26,7 +26,8 @@
    (torrent :initarg :torrent :reader .torrent)
    (peers :initform (make-hash-table :test #'equalp) :reader .peers)
    (blacklist :initarg :blacklist :reader .blacklist)
-   (args :initarg :args :reader .args)))
+   (args :initarg :args :reader .args)
+   (yourip :initform (make-hash-table :test #'equalp) :reader .yourip)))
 
 ;; Algorithm for selecting new peers
 ;; - if we tried to connect to a peer before but fewer than *min-blocks* were received, skip
@@ -84,6 +85,10 @@
   "Start a new thread that regulary pulls from a tracker"
   (apply #'spawn nil #'tracker-loop tracker (.torrent state) (.channel state) (.args state)))
 
+(defcall :yourip ((state control) &args address)
+  "Record yourip response from an extended BitTorrent message header"
+  (setf (gethash address (.yourip state)) (get-internal-real-time)))
+
 (defun count-peers (peers)
   "Count peers with a breakdown by type"
   (let ((total 0) (active 0) (waiting 0) (new 0))
@@ -100,7 +105,8 @@
 (defcall :print-status ((state control) &args next)
   "Print torrent status"
   (let* ((torrent (.torrent state))
-         (mask (tr-piece-mask torrent)))
+         (mask (tr-piece-mask torrent))
+         (yourip (sort (hash-list (.yourip state)) #'> :key #'cdr)))
     (format t "~a~%" (tr-name torrent))
     (format t "Downloaded: ~1$%~%" (* 100 (/ (count 1 mask) (length mask))))
     (format t "Cache: ~a pieces of ~a kB each~%"
@@ -108,6 +114,14 @@
             (round (tr-piece-length torrent) 1024))
     (multiple-value-bind (total active waiting new) (count-peers (.peers state))
       (format t "Peers: ~a total, ~a active, ~a waiting, ~a new~%" total active waiting new))
+    (when yourip
+      (format
+       t "YourIP: ~{~{~a~^.~}~^, ~}"
+       (loop
+          for r in yourip
+          for i from 1 to *yourip-count*
+          collect (coerce (car r) 'list)))
+      (format t (if (> (length yourip) *yourip-count*) ", ...~%" "~%")))
     (format t "~%"))
   (if next (send (cdar next) :print-status (cdr next))))
 

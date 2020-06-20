@@ -37,6 +37,10 @@
 (defparameter *precision* (coerce internal-time-units-per-second 'float))
 (defparameter *minimum-window* 256)
 
+;; Printing (status reports, etc.)
+
+(defparameter *yourip-count* 3) ; Number of latest unique yourip responses to print
+
 ;; Logging
 
 (defparameter *max-log-level* 3)
