@@ -53,14 +53,14 @@ A SOCKS5 proxy can be used, in which case the tracker request as well as peer co
   (start *torrents* torrent :proxy '(#(127 0 0 1) . 1080)))
 ```
 
-A blacklist can be specified in a functional manner (a contrived example, admittedly):
+A blocklist can be specified in a functional manner (a contrived example, admittedly):
 
 ```lisp
-(defun blacklist (address)
+(defun blocklist (address)
   (equalp address '(#(127 0 0 1) . 6881))) ; Do not initiate connections with 127.0.0.1:6881
 
 (let ((torrent (read-torrent "/path/to/torrent/file")))
-  (start *torrents* torrent :blacklist #'blacklist))
+  (start *torrents* torrent :blocklist #'blocklist))
 ```
 
 Additional trackers can be added, e.g.:

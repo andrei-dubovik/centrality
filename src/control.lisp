@@ -25,7 +25,7 @@
   ((channel :initarg :channel :reader .channel)
    (torrent :initarg :torrent :reader .torrent)
    (peers :initform (make-hash-table :test #'equalp) :reader .peers)
-   (blacklist :initarg :blacklist :reader .blacklist)
+   (blocklist :initarg :blocklist :reader .blocklist)
    (args :initarg :args :reader .args)
    (yourip :initform (make-hash-table :test #'equalp) :reader .yourip)))
 
@@ -54,24 +54,24 @@
          ((or (eql i total) (eql l (1- r))) list)
        (push (elt buffer (if (< (random 1.0) *exploration*) (incf l) (decf r))) list)))))
 
-(defun empty-blacklist (p)
-  "A default blacklist checker"
+(defun empty-blocklist (p)
+  "A default blocklist checker"
   (declare (ignore p))
   nil)
 
 (defcall :peers ((state control) &args peers)
   "Add new peer to the list of known peers"
-  (let (log-new log-black)
+  (let (log-new log-block)
     (dolist (peer peers)
-      (if (funcall (.blacklist state) peer)
-          (push peer log-black)
+      (if (funcall (.blocklist state) peer)
+          (push peer log-block)
           (when (not (gethash peer (.peers state)))
             (push peer log-new)
             (setf (gethash peer (.peers state)) (make-peer :address peer)))))
     (when (> (length log-new) 0)
       (send (.channel state) :respawn)
       (log-msg 2 :event :newpeers :torrent (format-hash (.torrent state))
-               :count (length log-new) :peers log-new :blacklisted log-black))))
+               :count (length log-new) :peers log-new :blocklisted log-block))))
 
 (defcall :respawn ((state control) &args)
   "Initiate new connections"
@@ -125,14 +125,14 @@
     (format t "~%"))
   (if next (send (cdar next) :print-status (cdr next))))
 
-(defworker control-loop (torrent &rest rest &key (blacklist #'empty-blacklist) trackers &allow-other-keys)
+(defworker control-loop (torrent &rest rest &key (blocklist #'empty-blocklist) trackers &allow-other-keys)
   "Initiate new connections, keep track of past and present peers"
   (let* ((state
           (make-instance
            'control
            :channel (channel)
            :torrent (new-tr torrent) ; TODO: move this initialization higher up the stack
-           :blacklist blacklist
+           :blocklist blocklist
            :args rest))
          (torrent (.torrent state)))
     (setf (tr-queue torrent) (spawn nil #'storage-loop torrent))
