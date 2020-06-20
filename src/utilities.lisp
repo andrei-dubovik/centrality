@@ -78,13 +78,6 @@
   "Get first element if object is list, otherwise return object itself"
   (if (listp object) (car object) object))
 
-(defun hash-list (hash-table)
-  "Coerce hash table to list"
-  (let (list)
-    (dohash ((key value) hash-table)
-      (push (cons key value) list))
-    list))
-
 ;; Basic doubly linked lists
 ;; Structure: (cons (cons prev value) next)
 
@@ -144,6 +137,13 @@
             (when ,status
               ,@body
               (go ,begin)))))))
+
+(defun hash-list (hash-table)
+  "Coerce hash table to list"
+  (let (list)
+    (dohash ((key value) hash-table)
+      (push (cons key value) list))
+    list))
 
 ;; Bit-vector operations (TODO: switch to big integers?)
 
