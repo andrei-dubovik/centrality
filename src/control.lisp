@@ -123,7 +123,7 @@
           collect (coerce (car r) 'list)))
       (format t (if (> (length yourip) *yourip-count*) ", ...~%" "~%")))
     (format t "~%"))
-  (if next (send (cdar next) :print-status (cdr next))))
+  (if (not (tail-node-p next)) (send (node-value next) :print-status (next-node next))))
 
 (defworker control-loop (torrent &rest rest &key (blocklist #'empty-blocklist) trackers &allow-other-keys)
   "Initiate new connections, keep track of past and present peers"
@@ -148,6 +148,6 @@
 (defun print-status (pool)
   "Print status for each active torrent"
   (format t "===== STATUS REPORT ~a =====~%" (get-formatted-time))
-  (let ((next (cddr pool)))
-    (format t "Active torrents: ~a~%~%" (length next))
-    (if next (send (cdar next) :print-status (cdr next)))))
+  (format t "Active torrents: ~a~%~%" (chain-count (pool-chain pool)))
+  (let ((first (chain-first (pool-chain pool))))
+    (if (not (tail-node-p first)) (send (node-value first) :print-status (next-node first)))))

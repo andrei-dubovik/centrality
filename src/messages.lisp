@@ -52,13 +52,19 @@
   (string-join
    (list *basename* (function-name func) (write-to-string (incf-thread-counter))) "-"))
 
+(defmacro pool-lock (pool)
+  `(car ,pool))
+
+(defmacro pool-chain (pool)
+  `(cdr ,pool))
+
 (defun make-thread-pool ()
   "Create a new thread pool"
-  (cons (make-lock) (dll-new)))
+  (cons (make-lock) (make-chain)))
 
 (defmacro dopool ((var list) &body body)
   "Iterate over a thread pool"
-  `(dodll (,var (cdr ,list))
+  `(dochain (,var (pool-chain ,list))
      ,@body))
 
 (defun spawn (pool worker &rest args)
@@ -66,11 +72,11 @@
   (let ((channel (make-mailbox)))
     (if pool
         ;; Pool available
-        (let ((channel* (with-lock-held ((car pool))
-                          (dll-append (cdr pool) channel))))
+        (let ((channel* (with-lock-held ((pool-lock pool))
+                          (chain-pushback channel (pool-chain pool)))))
           (flet ((finilize ()
-                   (with-lock-held ((car pool))
-                     (dll-remove channel*))))
+                   (with-lock-held ((pool-lock pool))
+                     (chain-remove channel*))))
             (make-thread
              (lambda ()
                (apply worker channel #'finilize args))

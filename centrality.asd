@@ -7,6 +7,7 @@
   :serial t
   :components ((:file "src/package")
                (:file "src/utilities")
+               (:file "src/doubly-linked-list")
                (:file "src/mailbox")
                (:file "src/math")
                (:file "src/bytes")

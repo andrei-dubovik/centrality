@@ -78,36 +78,6 @@
   "Get first element if object is list, otherwise return object itself"
   (if (listp object) (car object) object))
 
-;; Basic doubly linked lists
-;; Structure: (cons (cons prev value) next)
-
-(defun dll-new ()
-  "Create a doubly linked list with one null element"
-  (cons (cons nil nil) nil))
-
-(defun dll-append (head obj)
-  "Insert obj after head in a doubly linked list"
-  (let* ((next (cdr head))
-         (node (cons (cons head obj) next)))
-    (if head (setf (cdr head) node))
-    (if next (setf (caar next) node))
-    node))
-
-(defun dll-remove (head)
-  "Remove head from a doubly linked list"
-  (let ((prev (caar head))
-        (next (cdr head)))
-    (if prev (setf (cdr prev) next))
-    (if next (setf (caar next) prev))
-    next))
-
-(defmacro dodll ((var list) &body body)
-  "Iterate over a doubly linked list, skipping the header"
-  (with-gensym (var*)
-    `(dolist (,var* (cdr ,list))
-       (let ((,var (cdr ,var*)))
-         ,@body))))
-
 ;; Playing around with iteration macros :)
 
 (defmacro while (cond &body body)
