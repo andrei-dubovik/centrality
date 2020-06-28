@@ -34,6 +34,16 @@
 (defmacro chain-last (chain)
   `(prev-node (chain-tail ,chain)))
 
+(defun chain-front (chain)
+  "Return the first non-dummy element"
+  (let ((value (node-value (chain-first chain))))
+    (if (eql value 'tail) nil value)))
+
+(defun chain-back (chain)
+  "Return the last non-dummy element"
+  (let ((value (node-value (chain-last chain))))
+    (if (eql value 'head) nil value)))
+
 (defun make-chain ()
   "Create an empty doubly-linked list"
   (let ((head (make-node nil 'head nil))
