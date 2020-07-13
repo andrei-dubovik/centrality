@@ -69,9 +69,9 @@
 
 (defun choose-piece ()
   "Choose a random piece to download"
-  (let ((mask (bit-ior (tr-piece-mask *torrent*)
-                       (peer-req-mask *peer*)
-                       (bit-not (peer-avl-mask *peer*)))))
+  (let ((mask (bit-ior (tr-piece-mask *torrent*)           ; verified pieces
+                       (peer-req-mask *peer*)              ; scheduled pieces
+                       (bit-not (peer-avl-mask *peer*))))) ; pieces that peer does not have
     (find-if (lambda (i) (zerop (sbit mask i)))
              (random-permutation (tr-no-pieces *torrent*)))))
 
