@@ -102,3 +102,7 @@
 (defun chain-count (chain)
   "Return the number of elements in a double linked list"
   (- (length (chain-head chain)) 2))
+
+(defun chain-emptyp (chain)
+  "Check if the chain is empty"
+  (tail-node-p (chain-first chain)))

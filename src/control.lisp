@@ -18,7 +18,7 @@
   choked     ; t if choked else nil
   avl-mask   ; bitmask of pieces that peer has
   req-mask   ; bitmask of requested pieces
-  window     ; congestion windows (in blocks)
+  peer2      ; a temporary hack (references a peer class; eventually, only that class will be used)
 )
 
 (defclass control ()

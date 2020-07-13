@@ -25,9 +25,47 @@
 
 ;; Work in progress
 
-(defclass peer2 () ())
+(defclass peer2 ()
+  ((queue :initform (make-dict :test #'equalp) :reader .queue)
+   (prequeue :initform (make-chain) :reader .prequeue)
+   (queue-size :initform *default-queue-size* :accessor .queue-size)
+   (syn-sent :initform 0 :accessor .syn-sent)
+   (syn-received :initform 0 :accessor .syn-received)))
 
 ;; Scheduler
+
+;; The scheduler operates as follows.
+
+;; Each peer has an associated queue and prequeue. The queue is an
+;; ordered dictionary, which registers blocks requested from the peer.
+;; The prequeue is a doubly linked list, which registers blocks
+;; scheduled for downloading but not yet requested from the peer.
+
+;; 1. A random piece that has not been chosen earlier, that is not yet
+;; verified, and that a peer has, is selected. All blocks from this
+;; piece are added to the prequeue in a random order.
+
+;; 2. All requested blocks that are out of order by more than
+;; *max-delay*, i.e. that have been requested at least *max-delay*
+;; blocks earlier than a block that have been successfully received,
+;; are presumed lost. They are removed from the queue, and added to
+;; the front of the prequeue.
+
+;; 3. Every *clock* cycle, new blocks are drawn from the prequeue,
+;; requested from the peer, and added to the queue so as to maintain
+;; the queue at its maximum capacity. The maximum capacity is
+;; initially given by *default-queue-size*, but it is adjusted if a
+;; new capacity is received via extended BitTorrent handshake.
+;; Whenever the prequeue is empty, it is refilled (see step 1).
+
+;; 4. When requested blocks are received, they are removed from the
+;; queue.
+
+;; Per design, the prequeues and queues of different peers are not
+;; coordinated. As a result, some blocks will be requested from
+;; multiple peers, creating a small overhead. A piece and its
+;; constituent blocks stop being eligible for requesting only once the
+;; piece is verified.
 
 (defun choose-piece ()
   "Choose a random piece to download"
@@ -36,6 +74,56 @@
                        (bit-not (peer-avl-mask *peer*)))))
     (find-if (lambda (i) (zerop (sbit mask i)))
              (random-permutation (tr-no-pieces *torrent*)))))
+
+(defun enqueue-piece (peer)
+  "Add a random piece in random order to prequeue"
+  (let ((pid (choose-piece))
+        (prequeue (.prequeue peer)))
+    (when pid
+      (setf (sbit (peer-req-mask *peer*) pid) 1)
+      (loop
+         for bid across (random-permutation (piece-size pid *torrent*))
+         do (chain-pushback (cons pid bid) prequeue))
+      (log-msg 3 :event :enqueue :torrent (format-hash *torrent*) :peer (peer-address *peer*) :piece pid))))
+
+(defun pop-refill (peer)
+  "Get one element from prequeue, refill prequeue if necessary"
+  (let ((prequeue (.prequeue peer)))
+    (if (chain-emptyp prequeue)
+        (enqueue-piece peer))
+    (chain-popfront prequeue)))
+
+(defun queue-delay (peer)
+  "Compute queue delay (positive delay means out of order or lost blocks)"
+  (if-let (syn (nth-value 1 (dict-front (.queue peer))))
+    (- (.syn-received peer) syn)
+    0))
+
+(defun requeue-lost (peer)
+  "Move lost blocks to prequeue"
+  (let ((prequeue (.prequeue peer))
+        (queue (.queue peer)))
+    (while (> (queue-delay peer) *max-delay*)
+      (chain-pushfront (dict-popfront queue) prequeue))))
+
+(defmacro send-network (msg)
+  "A shorthand for (call network ...)"
+  `(call *network* ,@msg))
+
+(defun request-block (pid bid)
+  "Request a specific block"
+  (send-network (:request pid (* bid *block-length*) (block-length pid bid *torrent*))))
+
+(defun request-bulk (peer)
+  "Send enough block requests to keep the queue full"
+  (requeue-lost peer)
+  (let ((delta (- (.queue-size peer) (dict-count (.queue peer)))))
+    (dotimes (i delta)
+      (let ((pid-bid (pop-refill peer)))
+        (if (not pid-bid) (return))
+        (destructuring-bind (pid . bid) pid-bid
+          (request-block pid bid)
+          (setf (getkey pid-bid (.queue peer)) (incf (.syn-sent peer))))))))
 
 ;; Logging
 
@@ -64,24 +152,10 @@
 
 ;; Sending messages
 
-(defmacro send-network (msg)
-  "A shorthand for (call network ...)"
-  `(call *network* ,@msg))
-
-(defun request-piece (pid)
-  "Queue one piece for download in random order"
-  (iter (for bid in-vector (random-permutation (piece-size pid *torrent*)))
-        (send-network (:request pid (* bid *block-length*) (block-length pid bid *torrent*))))
-  (setf (sbit (peer-req-mask *peer*) pid) 1)
-  (incf (peer-window *peer*) (piece-size pid *torrent*)))
-
-(defun send-messages ()
+(defun send-messages (peer)
   "Gets called at *clock* intervals to send messages"
-  (if (and
-       (< (peer-window *peer*) *minimum-window*)
-       (not (peer-choked *peer*)))
-      (if-let (piece (choose-piece))
-        (request-piece piece))))
+  (if (not (peer-choked *peer*))
+      (request-bulk peer)))
 
 (defun send-init ()
   "Send initial messages"
@@ -113,8 +187,12 @@
   (multiple-value-bind (bid rem) (floor offset *block-length*)
     (if (not (zerop rem)) (error 'block-bad-offset))
     (if (not (eql (length block) (block-length pid bid *torrent*)))
-        (error 'block-bad-size)))
-  (decf (peer-window *peer*))
+        (error 'block-bad-size))
+    (let ((queue (.queue peer))
+          (key (cons pid bid)))
+      (if-let (syn (getkey key queue))
+        (setf (.syn-received peer) syn))
+      (remkey key queue)))
   (incf (peer-no-blocks *peer*))
   (send (tr-queue *torrent*) :block pid offset block))
 
@@ -122,8 +200,11 @@
 
 (defcall :ext-handshake ((peer peer2) &args msg)
   "Process incoming extended handshake"
-  (let ((yourip (getvalue "yourip" msg)))
-    (if yourip (send *control* :yourip yourip))))
+  (let ((yourip (getvalue "yourip" msg))
+        (reqq (getvalue "reqq" msg)))
+    (if yourip (send *control* :yourip yourip))
+    (if (and reqq (> reqq 1))
+        (setf (.queue-size peer) (1- reqq))))) ; some clients tend to lose the last block, hence (1- reqq)
 
 (defcall :ext-pex ((peer peer2) &args peers)
   "Register new peers with the control thread"
@@ -138,8 +219,7 @@
     (:exts exts)
     (:choked t)
     (:avl-mask (make-array (tr-no-pieces torrent) :element-type 'bit))
-    (:req-mask (make-array (tr-no-pieces torrent) :element-type 'bit))
-    (:window 0)))
+    (:req-mask (make-array (tr-no-pieces torrent) :element-type 'bit))))
 
 (define-condition bad-hash (error) ())
 
@@ -185,7 +265,7 @@
 
         ;; send messages if it is time or if overdue
         (when (> tick 0)
-          (send-messages)
+          (send-messages peer2)
           (setq clock (+ clock *clock*))))
 
       ;; shedule next operation
@@ -204,7 +284,8 @@
                 (*network* (make-instance 'network :stream (peer-connect)))
                 (*control* control))
            (send-init)
-           (channel-loop (get-internal-real-time) 0 (make-instance 'peer2)))
+           (setf (peer-peer2 *peer*) (make-instance 'peer2))
+           (channel-loop (get-internal-real-time) 0 (peer-peer2 *peer*)))
       (socket-close socket))))
 
 (defworker channel-catch (torrent peer control &rest rest)

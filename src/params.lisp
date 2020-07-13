@@ -31,11 +31,16 @@
 (defparameter *min-blocks* 1)      ; minimum number of downloaded blocks to consider a reconnect
 
 ;; Congestion control
-;; (congestion control is primitive at the moment)
 
 (defparameter *clock* (ceiling internal-time-units-per-second 10))
 (defparameter *precision* (coerce internal-time-units-per-second 'float))
-(defparameter *minimum-window* 256)
+
+;; Requested blocks that are out of order by *max-delay* will be requeried
+(defparameter *max-delay* 128)
+
+;; 255 is the smallest "reqq" I've seen, some clients tend to lose the
+;; last block, so I set it at 254
+(defparameter *default-queue-size* 254)
 
 ;; Printing (status reports, etc.)
 
