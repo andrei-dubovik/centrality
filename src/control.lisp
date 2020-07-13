@@ -102,6 +102,17 @@
           (incf new)))
     (values total active waiting new)))
 
+(defun max-delays (peers)
+  "Return largest delays for each peer (congestion debugging)"
+  (let (delays)
+    (dohash ((address peer) peers)
+      (when (and (peer-no-blocks peer)
+                 (> (peer-no-blocks peer) 0)
+                 (peer-active peer)
+                 (not (peer-choked peer)))
+        (push (queue-delay (peer-peer2 peer)) delays)))
+    delays))
+
 (defcall :print-status ((state control) &args next)
   "Print torrent status"
   (let* ((torrent (.torrent state))
@@ -122,6 +133,11 @@
           for i from 1 to *yourip-count*
           collect (coerce (car r) 'list)))
       (format t (if (> (length yourip) *yourip-count*) ", ...~%" "~%")))
+    (let ((delays (max-delays (.peers state))))
+      (when delays
+        (if (> (length delays) *delay-count*)
+            (format t "Queue delays (debugging): ~v{~a~^, ~}...~%" *delay-count* (sort delays #'>))
+            (format t "Queue delays (debugging): ~{~a~^, ~}~%" (sort delays #'>)))))
     (format t "~%"))
   (if (not (tail-node-p next)) (send (node-value next) :print-status (next-node next))))
 

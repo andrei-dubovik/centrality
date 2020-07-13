@@ -45,6 +45,7 @@
 ;; Printing (status reports, etc.)
 
 (defparameter *yourip-count* 3) ; Number of latest unique yourip responses to print
+(defparameter *delay-count* 10) ; Number of largest block request delays to print (debugging)
 
 ;; Logging
 
