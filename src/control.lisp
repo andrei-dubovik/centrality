@@ -38,7 +38,7 @@
 (defun choose-peers (peers total)
   "Choose new peers to connect to, so to as to have a given total of active peers"
   (let ((active 0)
-        (buffer (make-array 0 :adjustable t)))
+        (buffer (make-array 0 :adjustable t :fill-pointer t)))
     (iter (for (addr peer) in-hashtable peers)
           (if (peer-active peer)
               (incf active)
